@@ -1,0 +1,17 @@
+# Virtual environment -- machine-specific, never needed in the repo
+venv/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# In case you ever create a local .env file for secrets -- never commit this
+.env
+
+# Streamlit's local secrets file (used for local secret management) -- if
+# you ever create one, it must never be committed
+.streamlit/secrets.toml
+
+# OS/editor clutter
+.DS_Store
+.vscode/
