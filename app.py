@@ -220,6 +220,28 @@ def main() -> None:
         unsafe_allow_html=True,
     )
 
+    st.markdown(
+        f"""
+        <div style="
+            background-color:#EEF1FB;
+            border:1px solid {TOKENS['accent']};
+            border-left:4px solid {TOKENS['accent']};
+            border-radius:8px;
+            padding:14px 18px;
+            margin:18px 0;
+            font-size:13.5px;
+            line-height:1.5;
+            color:{TOKENS['text']};
+        ">
+            <strong>🔒 Before you paste anything:</strong> don't include real passwords,
+            verification codes, or other highly sensitive personal data. This is an early,
+            independent project — great for checking suspicious emails, not for storing
+            confidential information.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     # st.session_state is Streamlit's way of remembering values between
     # reruns of the script for the SAME browser session (remember: Streamlit
     # reruns main() top-to-bottom on every interaction). Without this, we'd
