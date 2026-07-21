@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from email import message_from_bytes
+from email.message import Message
 
 
 # ---------------------------------------------------------------------------
@@ -100,6 +102,11 @@ class HeuristicsResult:
     urls_found: list[str] = field(default_factory=list)
     sender_email: str | None = None
     sender_name: str | None = None
+    # Real SPF/DKIM/DMARC verdicts from the receiving mail server, only
+    # available when a raw .eml file was uploaded (not from pasted text).
+    # Each value is "pass", "fail", "softfail", "none", etc., or None if
+    # that check wasn't present in the email's headers at all.
+    auth_results: dict = field(default_factory=dict)
 
     def to_summary_dict(self) -> dict:
         """Compact representation to hand to the LLM prompt."""
@@ -107,6 +114,7 @@ class HeuristicsResult:
             "sender_name": self.sender_name,
             "sender_email": self.sender_email,
             "urls_found": self.urls_found,
+            "authentication_results": self.auth_results or "not available (pasted text only, no raw headers)",
             "findings": [
                 {"id": f.id, "severity": f.severity, "summary": f.summary, "evidence": f.evidence}
                 for f in self.findings
@@ -248,6 +256,36 @@ def check_suspicious_urls(urls: list[str]) -> list[Finding]:
     return findings
 
 
+def check_authentication_results(auth_results: dict) -> list[Finding]:
+    """Unlike every other check in this file, this one isn't pattern-matching
+    -- it's reading a verdict that was already cryptographically verified by
+    the RECEIVING mail server (Gmail, Outlook, etc.) before the email ever
+    reached the user. A failure here is much stronger evidence than anything
+    else we can detect from text alone, because it can't be faked by clever
+    wording -- it's a mathematical check on whether the sending server was
+    actually authorized to send as that domain."""
+    findings: list[Finding] = []
+    labels = {
+        "spf": "SPF (sender server authorization)",
+        "dkim": "DKIM (message integrity signature)",
+        "dmarc": "DMARC (domain-level policy)",
+    }
+    for mechanism, label in labels.items():
+        status = auth_results.get(mechanism)
+        if status in ("fail", "softfail", "permerror"):
+            findings.append(Finding(
+                id=f"{mechanism}_auth_failed",
+                severity="high",
+                summary=(
+                    f"{label} check FAILED. This is a verified technical result from the "
+                    f"receiving mail server, not a guess -- it means this email likely did "
+                    f"not actually come from an authorized server for the claimed sending domain."
+                ),
+                evidence=f"{mechanism}={status}",
+            ))
+    return findings
+
+
 def check_urgency_language(text: str) -> list[Finding]:
     findings: list[Finding] = []
     lower = text.lower()
@@ -298,3 +336,68 @@ def analyze(text: str) -> HeuristicsResult:
     result.findings.extend(check_sensitive_requests(text))
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# .eml file parsing (unlocks real SPF/DKIM/DMARC verification)
+# ---------------------------------------------------------------------------
+
+def _extract_auth_results(msg: Message) -> dict:
+    """Reads the 'Authentication-Results' header(s), added by the mail
+    server that RECEIVED the email, which record whether SPF/DKIM/DMARC
+    checks passed. A raw .eml file can contain more than one of these
+    headers (added by different servers as the email hopped between them),
+    so we search all of them combined."""
+    results = {"spf": None, "dkim": None, "dmarc": None}
+    auth_headers = msg.get_all("Authentication-Results", failobj=[])
+    combined = " ".join(auth_headers)
+    for mechanism in ("spf", "dkim", "dmarc"):
+        match = re.search(rf"{mechanism}=(\w+)", combined, re.IGNORECASE)
+        if match:
+            results[mechanism] = match.group(1).lower()
+    return results
+
+
+def _extract_body(msg: Message) -> str:
+    """Emails are often 'multipart' (a plain-text version AND an HTML
+    version bundled together). We specifically want the plain-text part --
+    walk() lets us look through every part of the email to find it."""
+    if msg.is_multipart():
+        for part in msg.walk():
+            if part.get_content_type() == "text/plain" and not part.get_filename():
+                payload = part.get_payload(decode=True)
+                if payload:
+                    charset = part.get_content_charset() or "utf-8"
+                    return payload.decode(charset, errors="replace")
+        return ""
+    else:
+        payload = msg.get_payload(decode=True)
+        if payload:
+            charset = msg.get_content_charset() or "utf-8"
+            return payload.decode(charset, errors="replace")
+        return str(msg.get_payload())
+
+
+def analyze_eml(raw_bytes: bytes) -> tuple[HeuristicsResult, str]:
+    """Entry point for uploaded .eml files. Parses real headers (unlocking
+    SPF/DKIM/DMARC verification) and the message body, then reuses the same
+    checks analyze() uses for pasted text, plus the new authentication check.
+    Returns the HeuristicsResult, plus a reconstructed text block (matching
+    the shape analyze() expects) so the LLM sees a consistent format either way.
+    """
+    msg = message_from_bytes(raw_bytes)
+
+    subject = msg.get("Subject", "")
+    from_header = msg.get("From", "")
+    body = _extract_body(msg)
+    auth_results = _extract_auth_results(msg)
+
+    reconstructed_text = f"From: {from_header}\nSubject: {subject}\n\n{body}"
+
+    # Reuse every existing text-based check by running them on the
+    # reconstructed text -- no need to duplicate that logic.
+    result = analyze(reconstructed_text)
+    result.auth_results = auth_results
+    result.findings.extend(check_authentication_results(auth_results))
+
+    return result, reconstructed_text

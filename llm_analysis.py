@@ -49,6 +49,16 @@ Think about things the rule-based system CANNOT detect on its own, such as:
 - Are there social-engineering patterns even if no technical red flags were found (e.g. \
 a fake "CEO" asking for a favor, romance/relationship pretexts, fake job offers)?
 
+IMPORTANT -- weighing evidence types: most findings from the rule-based system are pattern \
+matches (e.g. "this domain looks similar to a known brand"), which are strong but not \
+absolute signals. However, any finding with an id ending in "_auth_failed" (SPF/DKIM/DMARC) \
+represents a real cryptographic verification already performed by the email's own receiving \
+mail server -- not a guess, not a pattern match, an actual technical fact. Treat any such \
+finding as very strong evidence of spoofing, close to conclusive on its own, even if the \
+email's wording otherwise seems calm or professional. Conversely, if authentication_results \
+shows "pass" for all three (spf, dkim, dmarc), treat that as strong (though not absolute -- \
+a compromised legitimate account could still pass) evidence in favor of legitimacy.
+
 Respond with ONLY valid JSON, no other text, in exactly this shape:
 {
   "risk_level": "safe" | "suspicious" | "dangerous",

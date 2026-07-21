@@ -12,7 +12,7 @@ import re
 
 import streamlit as st
 
-from core import check_email
+from core import check_email, check_email_file
 from llm_analysis import Verdict
 
 
@@ -256,48 +256,79 @@ def main() -> None:
     checks_remaining = MAX_CHECKS_PER_SESSION - st.session_state.check_count
     limit_reached = checks_remaining <= 0
 
-    email_text = st.text_area(
-        "Paste the email text here (subject + body, and the sender's name/address if you have it):",
-        height=280,
-        placeholder=(
-            "From: PayPal Support <support@example.com>\n"
-            "Subject: Your account will be suspended\n\n"
-            "Dear Customer, we noticed unusual activity..."
-        ),
-        disabled=limit_reached,
-    )
-
     st.caption(f"{max(checks_remaining, 0)} of {MAX_CHECKS_PER_SESSION} checks remaining this session.")
 
-    check_clicked = st.button(
-        "Check This Email",
-        type="primary",
-        use_container_width=True,
-        disabled=limit_reached,
-    )
+    def process_check(run_check) -> None:
+        """Shared logic for handling a click, regardless of which tab it
+        came from -- increments the counter, runs whichever check function
+        was passed in, stores the result, and forces the immediate rerun
+        we set up earlier so the counter updates right away."""
+        st.session_state.check_count += 1
+        with st.spinner("Analyzing..."):
+            try:
+                verdict = run_check()
+            except Exception as e:  # noqa: BLE001
+                st.session_state.last_result = ("error", str(e))
+            else:
+                st.session_state.last_result = ("verdict", verdict)
+        st.rerun()
+
+    paste_tab, upload_tab = st.tabs(["📋 Paste Text", "📎 Upload .eml File"])
+
+    with paste_tab:
+        email_text = st.text_area(
+            "Paste the email text here (subject + body, and the sender's name/address if you have it):",
+            height=260,
+            placeholder=(
+                "From: PayPal Support <support@example.com>\n"
+                "Subject: Your account will be suspended\n\n"
+                "Dear Customer, we noticed unusual activity..."
+            ),
+            disabled=limit_reached,
+        )
+        paste_clicked = st.button(
+            "Check This Email",
+            type="primary",
+            use_container_width=True,
+            disabled=limit_reached,
+            key="paste_check_button",
+        )
+
+    with upload_tab:
+        st.caption(
+            "Uploading the real .eml file (instead of pasting text) unlocks stronger "
+            "checks -- real SPF/DKIM/DMARC authentication results, which can catch a "
+            "perfectly spoofed sender address that text alone never could. In most "
+            "email apps, look for 'Show Original', 'Download message', or 'Save as...' "
+            "to get this file."
+        )
+        uploaded_file = st.file_uploader(
+            "Upload the raw .eml file",
+            type=["eml"],
+            disabled=limit_reached,
+        )
+        upload_clicked = st.button(
+            "Check This Email",
+            type="primary",
+            use_container_width=True,
+            disabled=limit_reached,
+            key="upload_check_button",
+        )
 
     if limit_reached:
         st.warning("You've used all your checks for this session. Refresh the page to reset.")
 
-    if check_clicked:
-        # Guard against processing a click even if it somehow got through --
-        # never trust widget "disabled" state alone to enforce a rule.
-        if limit_reached:
-            pass  # already warned above; do not process
-        elif not email_text.strip():
+    if paste_clicked and not limit_reached:
+        if not email_text.strip():
             st.warning("Paste an email above before checking.")
         else:
-            st.session_state.check_count += 1
-            with st.spinner("Analyzing..."):
-                try:
-                    verdict = check_email(email_text)
-                except Exception as e:  # noqa: BLE001
-                    st.session_state.last_result = ("error", str(e))
-                else:
-                    st.session_state.last_result = ("verdict", verdict)
-            # Force an immediate rerun so the caption above reflects the
-            # new count right away, instead of lagging by one interaction.
-            st.rerun()
+            process_check(lambda: check_email(email_text))
+
+    if upload_clicked and not limit_reached:
+        if uploaded_file is None:
+            st.warning("Upload a .eml file above before checking.")
+        else:
+            process_check(lambda: check_email_file(uploaded_file.getvalue()))
 
     # Show the most recent result, if any. This persists across reruns
     # (e.g. the one triggered above) until a new check replaces it.
