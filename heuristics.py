@@ -59,19 +59,41 @@ KNOWN_URL_SHORTENERS = {
 }
 
 URGENCY_PHRASES = [
+    # English
     "act now", "immediate action", "urgent", "verify your account",
     "your account will be suspended", "your account has been limited",
     "confirm your identity", "unusual activity", "click here immediately",
     "failure to comply", "final notice", "within 24 hours",
     "within 48 hours", "account will be closed", "suspended",
     "unauthorized login", "security alert", "limited time",
+    # Arabic -- same underlying pressure/urgency tactics, translated.
+    # Added after discovering (via a real test case) that the English-only
+    # list found zero signal in a genuinely urgent Arabic phishing email --
+    # the check_suspicious_urls/check_sender_lookalike checks worked fine
+    # since they're language-independent, but text-pattern checks like this
+    # one were silently blind to non-English phishing.
+    "يرجى التحقق من حسابك",  # "please verify your account"
+    "سيتم تعليق حسابك",  # "your account will be suspended"
+    "نشاط غير عادي",  # "unusual activity"
+    "خلال 24 ساعة",  # "within 24 hours"
+    "تنبيه أمني عاجل",  # "urgent security alert"
+    "إجراء فوري",  # "immediate action"
+    "بشكل دائم",  # "permanently" (often paired with account closure threats)
+    "أكد هويتك",  # "confirm your identity"
 ]
 
 SENSITIVE_REQUEST_PHRASES = [
+    # English
     "enter your password", "confirm your password", "ssn", "social security",
     "credit card number", "cvv", "bank account number", "wire transfer",
     "gift card", "itunes card", "routing number", "one-time password",
     "otp", "login credentials", "update your payment", "billing information",
+    # Arabic
+    "أدخل كلمة المرور",  # "enter your password"
+    "رمز التحقق",  # "verification code" (OTP)
+    "رقم البطاقة",  # "card number"
+    "بيانات الحساب البنكي",  # "bank account details"
+    "تحويل بنكي",  # "wire transfer"
 ]
 
 
