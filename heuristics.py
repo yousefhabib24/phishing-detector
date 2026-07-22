@@ -15,8 +15,8 @@ Known limitation (v1): because we only accept pasted VISIBLE TEXT (not
 raw email source/headers), we can't verify SPF/DKIM/DMARC, and if a
 link's display text differs from its real destination, plain-text
 copy/paste usually loses that distinction. We flag any URLs we find in
-the text itself. Raw-header support is a planned v2 feature that will
-unlock much stronger sender-verification checks.
+the text itself. Raw-header support is unlocked via analyze_eml() for
+uploaded .eml files (see below).
 """
 
 from __future__ import annotations
@@ -104,6 +104,12 @@ FROM_LINE_REGEX = re.compile(
 )
 EMAIL_DOMAIN_REGEX = re.compile(r"@([\w-]+(?:\.[\w-]+)+)")
 
+# Arabic Unicode ranges: main block, Supplement, and Extended-A. Used only
+# for the lightweight language check below -- not a general-purpose
+# language detector, just enough to decide which language the AI should
+# respond in.
+_ARABIC_CHAR_REGEX = re.compile(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]")
+
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -185,6 +191,22 @@ def _domain_from_email(email: str) -> str | None:
     return match.group(1).lower() if match else None
 
 
+def detect_language(text: str) -> str:
+    """Lightweight language check -- NOT a general-purpose language
+    detector, just enough to decide which language the AI should write
+    its explanation in. Counts the proportion of Arabic-script characters
+    among all letters in the text; defaults to English otherwise."""
+    if not text:
+        return "english"
+    arabic_chars = len(_ARABIC_CHAR_REGEX.findall(text))
+    total_letters = len(re.findall(r"[^\W\d_]", text, re.UNICODE))
+    if total_letters == 0:
+        return "english"
+    if arabic_chars / total_letters > 0.2:
+        return "arabic"
+    return "english"
+
+
 def check_sender_lookalike(sender_name: str | None, sender_email: str | None) -> list[Finding]:
     """Flag a sender whose display name references a brand but whose domain
     doesn't match that brand's real domain(s) -- classic spoofing pattern."""
@@ -200,8 +222,6 @@ def check_sender_lookalike(sender_name: str | None, sender_email: str | None) ->
     for brand, real_domains in COMMON_BRANDS.items():
         if brand in name_lower:
             if domain not in real_domains:
-                # Check if it's a close-but-not-exact lookalike (higher signal)
-                # vs. wildly different (still suspicious either way)
                 closest = min(real_domains, key=lambda d: _levenshtein(domain, d))
                 distance = _levenshtein(domain, closest)
                 if distance <= 3:
@@ -235,7 +255,6 @@ def check_suspicious_urls(urls: list[str]) -> list[Finding]:
     ip_regex = re.compile(r"https?://\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")
 
     for url in urls:
-        # IP-address-based links are a strong phishing signal
         if ip_regex.match(url):
             findings.append(Finding(
                 id="ip_based_url",
@@ -258,7 +277,6 @@ def check_suspicious_urls(urls: list[str]) -> list[Finding]:
                 evidence=url,
             ))
 
-        # Lookalike domain check against known brands
         for brand, real_domains in COMMON_BRANDS.items():
             for real_domain in real_domains:
                 if domain == real_domain:
@@ -416,8 +434,6 @@ def analyze_eml(raw_bytes: bytes) -> tuple[HeuristicsResult, str]:
 
     reconstructed_text = f"From: {from_header}\nSubject: {subject}\n\n{body}"
 
-    # Reuse every existing text-based check by running them on the
-    # reconstructed text -- no need to duplicate that logic.
     result = analyze(reconstructed_text)
     result.auth_results = auth_results
     result.findings.extend(check_authentication_results(auth_results))

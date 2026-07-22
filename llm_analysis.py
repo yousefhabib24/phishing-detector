@@ -23,7 +23,7 @@ import json
 import os
 from dataclasses import dataclass, field
 
-from heuristics import HeuristicsResult
+from heuristics import HeuristicsResult, detect_language
 
 try:
     import anthropic
@@ -85,6 +85,15 @@ into plain consequences (e.g. "the sender's address doesn't actually belong to t
 - If the email is too short/ambiguous to judge confidently, say so honestly rather than guessing
 """
 
+# Maps our lightweight detect_language() result to a clear instruction
+# name for the model -- kept separate from the static SYSTEM_PROMPT above
+# so the per-request language choice doesn't require rewriting (and
+# invalidating any future caching of) the system prompt itself.
+_LANGUAGE_NAMES = {
+    "arabic": "Arabic",
+    "english": "English",
+}
+
 
 @dataclass
 class RedFlag:
@@ -102,13 +111,36 @@ class Verdict:
     is_mock: bool = False     # True if no API key was available and this is a fallback
 
 
-def _build_user_message(email_text: str, heuristics: HeuristicsResult) -> str:
+def _build_user_message(email_text: str, heuristics: HeuristicsResult, response_language: str) -> str:
     findings_json = json.dumps(heuristics.to_summary_dict(), indent=2)
+    language_name = _LANGUAGE_NAMES.get(response_language, "English")
     return (
         f"EMAIL TEXT PASTED BY USER:\n---\n{email_text.strip()}\n---\n\n"
         f"TECHNICAL FINDINGS FROM RULE-BASED SYSTEM:\n{findings_json}\n\n"
+        f"LANGUAGE INSTRUCTION: write the \"summary\", \"red_flags\" (title and explanation), "
+        f"and \"reassurance_notes\" fields in {language_name}, matching the language of the "
+        f"original email so the reader gets a natively understandable explanation. Keep "
+        f"\"risk_level\" and \"confidence\" as their exact English enum values regardless "
+        f"(e.g. \"safe\", \"suspicious\", \"dangerous\", \"low\", \"medium\", \"high\") -- "
+        f"only the human-readable text fields should be translated.\n\n"
         "Produce your JSON verdict now."
     )
+
+
+def _parse_response(raw_text: str) -> Verdict:
+    data = json.loads(raw_text)
+    red_flags = [
+        RedFlag(title=rf.get("title", ""), explanation=rf.get("explanation", ""))
+        for rf in data.get("red_flags", [])
+    ]
+    verdict = Verdict(
+        risk_level=data.get("risk_level", "suspicious"),
+        confidence=data.get("confidence", "low"),
+        summary=data.get("summary", ""),
+        red_flags=red_flags,
+        reassurance_notes=data.get("reassurance_notes", ""),
+    )
+    return _enforce_consistency(verdict)
 
 
 def _enforce_consistency(verdict: Verdict) -> Verdict:
@@ -128,25 +160,10 @@ def _enforce_consistency(verdict: Verdict) -> Verdict:
     return verdict
 
 
-def _parse_response(raw_text: str) -> Verdict:
-    data = json.loads(raw_text)
-    red_flags = [
-        RedFlag(title=rf.get("title", ""), explanation=rf.get("explanation", ""))
-        for rf in data.get("red_flags", [])
-    ]
-    verdict = Verdict(
-        risk_level=data.get("risk_level", "suspicious"),
-        confidence=data.get("confidence", "low"),
-        summary=data.get("summary", ""),
-        red_flags=red_flags,
-        reassurance_notes=data.get("reassurance_notes", ""),
-    )
-    return _enforce_consistency(verdict)
-
-
 def _mock_verdict(heuristics: HeuristicsResult) -> Verdict:
     """A simple, clearly-labeled stand-in used when no API key is configured
-    yet, so the rest of the app can be built/tested without one."""
+    yet, so the rest of the app can be built/tested without one. Always in
+    English -- mock mode is a placeholder, not a real language-aware path."""
     high_findings = [f for f in heuristics.findings if f.severity == "high"]
     if high_findings:
         risk_level = "dangerous"
@@ -175,11 +192,17 @@ def _mock_verdict(heuristics: HeuristicsResult) -> Verdict:
 def analyze_with_llm(email_text: str, heuristics: HeuristicsResult) -> Verdict:
     """Main entry point. Calls Claude to produce a final verdict, combining
     heuristic findings with the model's own reasoning over the email content.
-    Falls back to a mock verdict if no API key is configured."""
+    Falls back to a mock verdict if no API key is configured.
+
+    The response language is auto-detected from the email text itself (see
+    heuristics.detect_language) so a reader gets an explanation in the same
+    language as the email they're worried about, not just an accurate verdict."""
     api_key = os.environ.get("ANTHROPIC_API_KEY")
 
     if not api_key or anthropic is None:
         return _mock_verdict(heuristics)
+
+    response_language = detect_language(email_text)
 
     client = anthropic.Anthropic(api_key=api_key)
     message = client.messages.create(
@@ -187,7 +210,7 @@ def analyze_with_llm(email_text: str, heuristics: HeuristicsResult) -> Verdict:
         max_tokens=1000,
         system=SYSTEM_PROMPT,
         messages=[
-            {"role": "user", "content": _build_user_message(email_text, heuristics)}
+            {"role": "user", "content": _build_user_message(email_text, heuristics, response_language)}
         ],
     )
 
@@ -195,7 +218,6 @@ def analyze_with_llm(email_text: str, heuristics: HeuristicsResult) -> Verdict:
         block.text for block in message.content if getattr(block, "type", None) == "text"
     ).strip()
 
-    # Defensive cleanup in case the model wraps JSON in markdown fences
     if raw_text.startswith("```"):
         raw_text = raw_text.strip("`")
         if raw_text.lower().startswith("json"):
