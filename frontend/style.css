@@ -392,9 +392,23 @@ textarea#email-text:focus {
   .nav-inner { flex-wrap: wrap; height: auto; padding: 10px 16px; }
   .nav { height: auto; }
   .brand { font-size: 15px; }
+  /* The nav's "Check an email" button is redundant on phones -- the hero
+     directly below already has its own large CTA doing the same job.
+     Hiding it here avoids the nav wrapping onto an awkward, unbalanced
+     second row on narrow screens. Desktop is untouched. */
+  .nav-cta { display: none; }
+
   #hero-headline { font-size: 30px; }
   .hero { padding: 48px 16px 56px; }
   .hero-sub { font-size: 16px; }
+  /* The scan-card animation is purely decorative (aria-hidden) and its
+     badges are positioned assuming a wider card -- on narrow phones the
+     same-length text runs right into them. Rather than doing fragile
+     width-dependent repositioning math, we simply don't show this
+     specific flourish on phone-sized screens; nothing informational is
+     lost, since the headline/copy already carry the actual message. */
+  .hero-visual { display: none; }
+
   .tool { padding: 32px 16px 72px; }
   .tool-panel { padding: 16px; }
   .tabs { flex-direction: column; }
