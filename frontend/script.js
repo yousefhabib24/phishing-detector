@@ -13,7 +13,7 @@
 
 // IMPORTANT: update this to your deployed backend's real URL once it's
 // hosted -- this only works for local testing right now.
-const API_BASE_URL = "http://127.0.0.1:8000";
+const API_BASE_URL = "https://phishing-detector-wcnh.onrender.com";
 
 const RISK_STYLES = {
   safe: { color: "#2DD4A6", bg: "rgba(45, 212, 166, 0.12)", label: { en: "Looks Safe", ar: "يبدو آمناً" }, icon: "✅" },

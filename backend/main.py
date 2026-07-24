@@ -29,9 +29,22 @@ app = FastAPI(title="Phishy Max API")
 # default unless the server explicitly allows them. Since this API has no
 # accounts or sensitive mutating actions (it only analyzes text/files you
 # send it), allowing any origin is a reasonable choice for now.
+# CORS lets our frontend (hosted on a different domain than this API)
+# make requests to it. Previously set to "*" (any origin) as a placeholder
+# while both pieces were still local -- now that we know the frontend's
+# real, permanent URL, we lock it down to only that origin, plus
+# localhost so local development/testing still works without reopening
+# this back up. A security product with a wide-open API is a bad look,
+# and it's easy to fix now that the real URL exists.
+ALLOWED_ORIGINS = [
+    "https://phishy-max.onrender.com",
+    "http://localhost:5500",
+    "http://127.0.0.1:5500",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["POST", "GET"],
     allow_headers=["*"],
 )
