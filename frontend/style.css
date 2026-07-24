@@ -73,7 +73,7 @@ a:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visib
   gap: 16px;
 }
 .brand-link { display: flex; align-items: center; }
-.brand-logo { height: 128px; width: auto; display: block; }
+.brand-logo { height: 38px; width: auto; display: block; }
 .nav-right { display: flex; align-items: center; gap: 14px; }
 .nav-cta {
   font-family: var(--font-display);
