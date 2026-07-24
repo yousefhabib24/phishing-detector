@@ -38,6 +38,8 @@ app = FastAPI(title="Phishy Max API")
 # and it's easy to fix now that the real URL exists.
 ALLOWED_ORIGINS = [
     "https://phishy-max.onrender.com",
+    "https://phishymax.com",
+    "https://www.phishymax.com",
     "http://localhost:5500",
     "http://127.0.0.1:5500",
 ]
