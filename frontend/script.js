@@ -42,7 +42,7 @@ function t(key) {
 // rate-limit window -- without this, localStorage would keep accumulating
 // forever across every test session, eventually showing "0 remaining"
 // permanently even on a brand new day.
-const MAX_CHECKS = 10;
+const MAX_CHECKS = 5;
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function getLocalCheckCount() {

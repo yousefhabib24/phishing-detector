@@ -62,7 +62,7 @@ app.add_middleware(
 # resets if the server restarts/redeploys), but a reasonable, lightweight
 # guard against casual abuse -- consistent with how soft our original
 # per-session limit already was.
-MAX_CHECKS_PER_WINDOW = 10
+MAX_CHECKS_PER_WINDOW = 5
 WINDOW_SECONDS = 24 * 60 * 60  # 24 hours
 
 _request_log: dict[str, list[float]] = defaultdict(list)
