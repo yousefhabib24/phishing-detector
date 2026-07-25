@@ -9,13 +9,13 @@
 
 const TRANSLATIONS = {
   en: {
-    brandAlt: "Phishy Max",
+    brandAlt: "PhishyMax",
     navCta: "Check an email",
     heroQuestion: "Is That Email Safe?",
     heroAnswer: "Find Out in Seconds.",
     heroSub: "Paste an email or upload the real file. Our system checks the hard facts then explains what it found in plain language, not jargon.",
     heroCta: "Check an email now →",
-    heroNote: "Phishy Max is free. No sign-up. Works in Arabic and English.",
+    heroNote: "PhishyMax is free. No sign-up. Works in Arabic and English.",
     howTitle: "How it actually works",
     how1Title: "Fact check",
     how1Body: "A rule-based engine checks objective facts — sender domains, links, and real SPF/DKIM/DMARC authentication when you upload the raw file.",
@@ -31,7 +31,7 @@ const TRANSLATIONS = {
     checkBtn: "Check This Email",
     uploadHint: "Uploading the real .eml file unlocks stronger checks — real SPF/DKIM/DMARC results a pasted email can never include. Look for \"Download message\" or \"Save as EML\" in your email app.",
     fileDropLabel: "Click to choose a .eml file, or drag one here",
-    footerText: "Phishy Max provides guidance, not certainty. When in doubt, don't click links or share information — contact the organization directly using a phone number or website you already trust, not one from the email itself.",
+    footerText: "PhishyMax provides guidance, not certainty. When in doubt, don't click links or share information — contact the organization directly using a phone number or website you already trust, not one from the email itself.",
     checksRemaining: (n, max) => `${n} of ${max} checks remaining today (approximate).`,
     technicalDetails: "🔍 View technical details",
     senderLabel: "Sender name",
