@@ -73,7 +73,7 @@ a:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visib
   gap: 16px;
 }
 .brand-link { display: flex; align-items: center; }
-.brand-logo { height: 128px; width: auto; display: block; }
+.brand-logo { height: 38px; width: auto; display: block; }
 .nav-right { display: flex; align-items: center; gap: 14px; }
 .nav-cta {
   font-family: var(--font-display);
@@ -389,10 +389,13 @@ textarea#email-text:focus {
 }
 
 @media (max-width: 600px) {
-  .nav-inner { flex-wrap: wrap; height: auto; padding: 8px 16px; }
-  .nav { height: auto; }
+  .nav-inner { flex-wrap: wrap; padding: 0 16px; }
+  /* Fixed height + overflow:hidden means the header's size no longer
+     follows whatever height the logo happens to be set to -- the logo
+     is capped to fit inside this instead of the reverse. */
+  .nav { height: 56px; overflow: hidden; }
   .brand { font-size: 15px; }
-  .brand-logo { height: 100px; }
+  .brand-logo { height: auto; max-height: 36px; width: auto; }
   /* The nav's "Check an email" button is redundant on phones -- the hero
      directly below already has its own large CTA doing the same job.
      Hiding it here avoids the nav wrapping onto an awkward, unbalanced
