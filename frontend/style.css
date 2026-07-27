@@ -392,7 +392,7 @@ textarea#email-text:focus {
   .nav-inner { flex-wrap: wrap; height: auto; padding: 8px 16px; }
   .nav { height: auto; }
   .brand { font-size: 15px; }
-  .brand-logo { height: 95px; }
+  .brand-logo { height: 100px; }
   /* The nav's "Check an email" button is redundant on phones -- the hero
      directly below already has its own large CTA doing the same job.
      Hiding it here avoids the nav wrapping onto an awkward, unbalanced

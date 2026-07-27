@@ -21,7 +21,7 @@ const TRANSLATIONS = {
     how1Body: "A rule-based engine checks objective facts — sender domains, links, and real SPF/DKIM/DMARC authentication when you upload the raw file.",
     how2Title: "Reasoning",
     how2Body: "An AI layer weighs those facts against the email's actual content and tone — catching social engineering no checklist can.",
-    how3Title: "Plain-Language verdict",
+    how3Title: "Plain-Language Verdict",
     how3Body: "You get a clear verdict and an explanation you can actually understand — in the same language as the email itself.",
     toolTitle: "Check an email",
     disclaimer: "🔒 Don't paste real passwords or verification codes. This is an early, independent project — great for checking suspicious emails, not for storing confidential information.",
