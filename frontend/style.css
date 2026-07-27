@@ -389,9 +389,10 @@ textarea#email-text:focus {
 }
 
 @media (max-width: 600px) {
-  .nav-inner { flex-wrap: wrap; height: auto; padding: 10px 16px; }
+  .nav-inner { flex-wrap: wrap; height: auto; padding: 8px 16px; }
   .nav { height: auto; }
   .brand { font-size: 15px; }
+  .brand-logo { height: 30px; }
   /* The nav's "Check an email" button is redundant on phones -- the hero
      directly below already has its own large CTA doing the same job.
      Hiding it here avoids the nav wrapping onto an awkward, unbalanced
@@ -399,7 +400,11 @@ textarea#email-text:focus {
   .nav-cta { display: none; }
 
   #hero-headline { font-size: 30px; }
-  .hero { padding: 48px 16px 56px; }
+  /* Much tighter top padding than desktop -- the previous 48px, combined
+     with the decorative glow behind it, left a large dead-space gap
+     between the nav and the headline on phones. */
+  .hero { padding: 20px 16px 40px; }
+  .hero-glow { width: 500px; height: 500px; top: -10%; }
   .hero-sub { font-size: 16px; }
   /* The scan-card animation is purely decorative (aria-hidden) and its
      badges are positioned assuming a wider card -- on narrow phones the

@@ -206,46 +206,53 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
   });
 });
 
-const fileInput = document.getElementById("email-file");
-const fileDropLabel = document.getElementById("file-drop-label");
-const fileDropZone = document.getElementById("file-drop");
+function setupDropZone(dropZoneId, inputId, labelId) {
+  const dropZone = document.getElementById(dropZoneId);
+  const input = document.getElementById(inputId);
+  const label = document.getElementById(labelId);
 
-fileInput.addEventListener("change", () => {
-  if (fileInput.files.length > 0) {
-    fileDropLabel.textContent = fileInput.files[0].name;
-  }
-});
+  input.addEventListener("change", () => {
+    if (input.files.length > 0) {
+      label.textContent = input.files[0].name;
+    }
+  });
 
-// Drag-and-drop needs to be handled explicitly -- without preventDefault()
-// on these events, the browser's default behavior takes over instead
-// (which is exactly what caused it to open the file in a new tab).
-["dragenter", "dragover"].forEach((eventName) => {
-  fileDropZone.addEventListener(eventName, (e) => {
+  // Drag-and-drop needs to be handled explicitly -- without preventDefault()
+  // on these events, the browser's default behavior takes over instead
+  // (opening the dropped file directly in a new tab).
+  ["dragenter", "dragover"].forEach((eventName) => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.add("drag-active");
+    });
+  });
+
+  ["dragleave", "dragend"].forEach((eventName) => {
+    dropZone.addEventListener(eventName, (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dropZone.classList.remove("drag-active");
+    });
+  });
+
+  dropZone.addEventListener("drop", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    fileDropZone.classList.add("drag-active");
+    dropZone.classList.remove("drag-active");
+
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles.length > 0) {
+      input.files = droppedFiles;
+      label.textContent = droppedFiles[0].name;
+    }
   });
-});
 
-["dragleave", "dragend"].forEach((eventName) => {
-  fileDropZone.addEventListener(eventName, (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    fileDropZone.classList.remove("drag-active");
-  });
-});
+  return input;
+}
 
-fileDropZone.addEventListener("drop", (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  fileDropZone.classList.remove("drag-active");
-
-  const droppedFiles = e.dataTransfer.files;
-  if (droppedFiles.length > 0) {
-    fileInput.files = droppedFiles;
-    fileDropLabel.textContent = droppedFiles[0].name;
-  }
-});
+const fileInput = setupDropZone("file-drop", "email-file", "file-drop-label");
+const imageInput = setupDropZone("image-drop", "email-image", "image-drop-label");
 
 document.getElementById("check-text-btn").addEventListener("click", async () => {
   const emailText = document.getElementById("email-text").value.trim();
@@ -260,6 +267,25 @@ document.getElementById("check-text-btn").addEventListener("click", async () => 
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/check-text`, { method: "POST", body: formData });
+    await handleApiResponse(response);
+  } catch (err) {
+    renderError(t("unreachable"));
+  }
+});
+
+document.getElementById("check-image-btn").addEventListener("click", async () => {
+  const file = imageInput.files[0];
+  if (!file) {
+    renderError(t("uploadBeforeChecking"));
+    return;
+  }
+  document.getElementById("result-area").innerHTML = `<p style="color:var(--text-muted);">${t("analyzing")}</p>`;
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/check-image`, { method: "POST", body: formData });
     await handleApiResponse(response);
   } catch (err) {
     renderError(t("unreachable"));

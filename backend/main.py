@@ -19,10 +19,10 @@ from dataclasses import asdict
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from core import check_email_detailed, check_email_file_detailed
+from core import check_email_detailed, check_email_file_detailed, check_email_image_detailed
 
 
-app = FastAPI(title="Phishy Max API")
+app = FastAPI(title="PhishyMax API")
 
 # CORS lets our frontend (hosted on a different domain than this API)
 # make requests to it at all -- browsers block cross-origin requests by
@@ -132,6 +132,24 @@ async def api_check_file(request: Request, file: UploadFile = File(...)) -> dict
 
     try:
         verdict, heuristics_result = check_email_file_detailed(raw_bytes)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
+
+    return _build_response(verdict, heuristics_result)
+
+
+@app.post("/api/check-image")
+async def api_check_image(request: Request, file: UploadFile = File(...)) -> dict:
+    client_ip = request.client.host if request.client else "unknown"
+    _check_rate_limit(client_ip)
+
+    image_bytes = await file.read()
+    media_type = file.content_type or "image/png"
+
+    try:
+        verdict, heuristics_result = check_email_image_detailed(image_bytes, media_type)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001

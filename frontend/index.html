@@ -100,6 +100,7 @@
   <div class="tool-panel">
     <div class="tabs">
       <button class="tab-btn active" data-tab="paste" data-i18n="tabPaste">Paste Text</button>
+      <button class="tab-btn" data-tab="image" data-i18n="tabImage">Upload Image</button>
       <button class="tab-btn" data-tab="upload" data-i18n="tabUpload">Upload .eml File</button>
     </div>
 
@@ -109,6 +110,19 @@ Subject: Your account will be suspended
 
 Dear Customer, we noticed unusual activity..."></textarea>
       <button class="btn-primary" id="check-text-btn" data-i18n="checkBtn">Check This Email</button>
+    </div>
+
+    <div class="tab-panel" id="tab-image">
+      <p class="upload-hint" data-i18n="uploadImageHint">
+        Upload a screenshot of the email instead of typing it out -- handy if
+        you're on your phone. This uses live AI to read the image, so it
+        needs a real connection (no demo/mock mode for this option).
+      </p>
+      <label class="file-drop" id="image-drop">
+        <input type="file" id="email-image" accept="image/*" hidden>
+        <span id="image-drop-label" data-i18n="imageDropLabel">Click to choose a screenshot, or drag one here</span>
+      </label>
+      <button class="btn-primary" id="check-image-btn" data-i18n="checkBtn">Check This Email</button>
     </div>
 
     <div class="tab-panel" id="tab-upload">

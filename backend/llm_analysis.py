@@ -19,6 +19,7 @@ key yet.
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 from dataclasses import dataclass, field
@@ -32,6 +33,59 @@ except ImportError:  # pragma: no cover
 
 
 MODEL = "claude-haiku-4-5-20251001"
+
+EXTRACTION_PROMPT = """You are looking at a screenshot of an email. Read everything visible \
+and reconstruct it as plain text, in exactly this format:
+
+From: <sender name and/or email address, exactly as shown>
+Subject: <subject line, exactly as shown>
+
+<the full body text, as accurately as possible>
+
+Include any visible links/URLs exactly as written. If something is cut off, blurry, or not \
+fully visible, include what you can read and don't guess at the missing parts. Respond with \
+ONLY the reconstructed text -- no commentary, no explanation, nothing else."""
+
+
+def extract_text_from_image(image_bytes: bytes, media_type: str) -> str:
+    """Reads a screenshot of an email and reconstructs it as plain text, so it
+    can flow through the exact same heuristics + reasoning pipeline as pasted
+    text. Unlike the rest of this file, there's no mock-mode fallback here --
+    reading an image genuinely requires calling the real model, since there's
+    no rule-based way to fake 'reading a picture'."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key or anthropic is None:
+        raise ValueError(
+            "Image analysis requires a live API connection (no ANTHROPIC_API_KEY "
+            "configured). Try Paste Text or Upload .eml File instead, which support "
+            "a mock/demo mode without a key."
+        )
+
+    client = anthropic.Anthropic(api_key=api_key)
+    message = client.messages.create(
+        model=MODEL,
+        max_tokens=1000,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": base64.b64encode(image_bytes).decode("utf-8"),
+                        },
+                    },
+                    {"type": "text", "text": EXTRACTION_PROMPT},
+                ],
+            }
+        ],
+    )
+
+    return "".join(
+        block.text for block in message.content if getattr(block, "type", None) == "text"
+    ).strip()
 
 SYSTEM_PROMPT = """You are a phishing-detection assistant used inside a public web tool. \
 A non-technical person has pasted an email they're unsure about. You will be given:
