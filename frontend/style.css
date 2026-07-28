@@ -432,10 +432,11 @@ textarea#email-text:focus {
   .nav-inner { flex-wrap: wrap; padding: 0 16px; }
   /* Fixed height + overflow:hidden means the header's size no longer
      follows whatever height the logo happens to be set to -- the logo
-     is capped to fit inside this instead of the reverse. */
-  .nav { height: 56px; overflow: hidden; }
+     is capped to fit inside this instead of the reverse. Raised to 96px
+     (from 56px) to comfortably fit a larger logo. */
+  .nav { height: 96px; overflow: hidden; }
   .brand { font-size: 15px; }
-  .brand-logo { height: auto; max-height: 36px; width: auto; }
+  .brand-logo { height: auto; max-height: 72px; width: auto; }
   /* The nav's "Check an email" button is redundant on phones -- the hero
      directly below already has its own large CTA doing the same job.
      Hiding it here avoids the nav wrapping onto an awkward, unbalanced
