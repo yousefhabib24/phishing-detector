@@ -434,7 +434,7 @@ textarea#email-text:focus {
      follows whatever height the logo happens to be set to -- the logo
      is capped to fit inside this instead of the reverse. Sized to fit
      a 128px logo with a little breathing room. */
-  .nav { height: 130px; overflow: hidden; }
+  .nav { height: 100px; overflow: hidden; }
   .brand { font-size: 15px; }
   .brand-logo { height: auto; max-height: 128px; width: auto; }
   /* The nav's "Check an email" button is redundant on phones -- the hero
