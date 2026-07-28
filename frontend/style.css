@@ -233,6 +233,46 @@ a:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visib
 }
 
 /* ---------------------------------------------------------------------
+   Ambient background layer (cybersecurity terms/ciphertext fading in
+   and out behind the content below the hero). Purely decorative --
+   pointer-events:none so it never blocks clicks, and content sections
+   are lifted above it with z-index.
+--------------------------------------------------------------------- */
+.content-wrapper { position: relative; }
+
+.bg-terms {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.float-term {
+  position: absolute;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  color: var(--indigo-hover);
+  opacity: 0;
+  animation-name: floatFade;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+@keyframes floatFade {
+  0%   { opacity: 0; transform: translateY(8px); }
+  15%  { opacity: 0.14; transform: translateY(0); }
+  85%  { opacity: 0.14; }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-terms { display: none; }
+}
+
+.how, .tool, .footer { position: relative; z-index: 1; }
+
+/* ---------------------------------------------------------------------
    How it works
 --------------------------------------------------------------------- */
 .how { max-width: 1100px; margin: 0 auto; padding: 80px 24px; text-align: center; }
@@ -389,10 +429,13 @@ textarea#email-text:focus {
 }
 
 @media (max-width: 600px) {
-  .nav-inner { flex-wrap: wrap; height: auto; padding: 8px 16px; }
-  .nav { height: auto; }
+  .nav-inner { flex-wrap: wrap; padding: 0 16px; }
+  /* Fixed height + overflow:hidden means the header's size no longer
+     follows whatever height the logo happens to be set to -- the logo
+     is capped to fit inside this instead of the reverse. */
+  .nav { height: 56px; overflow: hidden; }
   .brand { font-size: 15px; }
-  .brand-logo { height: 100px; }
+  .brand-logo { height: auto; max-height: 36px; width: auto; }
   /* The nav's "Check an email" button is redundant on phones -- the hero
      directly below already has its own large CTA doing the same job.
      Hiding it here avoids the nav wrapping onto an awkward, unbalanced

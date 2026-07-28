@@ -33,7 +33,36 @@ function t(key) {
   return TRANSLATIONS[currentLang][key] ?? TRANSLATIONS.en[key];
 }
 
-// --- Client-side "checks remaining" indicator ---------------------------
+// --- Ambient background layer ---------------------------------------------
+// Purely decorative -- cybersecurity/phishing-related terms and hex-style
+// "ciphertext" that fade in and out behind the page, giving people
+// something to look at (especially during the "Analyzing..." wait) without
+// changing the site's actual color palette.
+const BG_TERMS = [
+  "SPF", "DKIM", "DMARC", "PHISHING", "SPOOFED", "VERIFIED",
+  "0x4F2A91", "0x9B3C7D", "Bilingual", "sha256:", "base64://",
+  "PHISHY <3", "authentication=fail", "URGENT", "AI-Powered",
+  "social engineering", "nmap", "malicious", "lookalike domain",
+  "TLS", "192.168.1.5", "payload", "zero-day", "CVE-2024", "MAXXING",
+];
+
+function initBackgroundTerms() {
+  const container = document.getElementById("bg-terms");
+  if (!container) return;
+
+  const termCount = 26;
+  for (let i = 0; i < termCount; i++) {
+    const span = document.createElement("span");
+    span.className = "float-term";
+    span.textContent = BG_TERMS[Math.floor(Math.random() * BG_TERMS.length)];
+    span.style.left = `${Math.random() * 92}%`;
+    span.style.top = `${Math.random() * 96}%`;
+    span.style.fontSize = `${11 + Math.random() * 6}px`;
+    span.style.animationDuration = `${7 + Math.random() * 8}s`;
+    span.style.animationDelay = `${Math.random() * 10}s`;
+    container.appendChild(span);
+  }
+}
 // Convenience display only -- the REAL enforcement happens server-side
 // (IP-based, in main.py), independent of this. Declared BEFORE
 // applyLanguage(), since applyLanguage calls updateChecksRemainingDisplay().
@@ -42,6 +71,10 @@ function t(key) {
 // rate-limit window -- without this, localStorage would keep accumulating
 // forever across every test session, eventually showing "0 remaining"
 // permanently even on a brand new day.
+// --- Client-side "checks remaining" indicator ---------------------------
+// Convenience display only -- the REAL enforcement happens server-side
+// (IP-based, in main.py), independent of this. Declared BEFORE
+// applyLanguage(), since applyLanguage calls updateChecksRemainingDisplay().
 const MAX_CHECKS = 5;
 const WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -313,3 +346,4 @@ document.getElementById("check-file-btn").addEventListener("click", async () => 
 
 // Initial render -- must come after everything above is defined/attached.
 applyLanguage(currentLang);
+initBackgroundTerms();
