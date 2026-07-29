@@ -43,7 +43,7 @@ const BG_TERMS = [
   "I <3 PHISHY", "PHISHY <3 U", "Bilingual", "sha256:", "base64://",
   "PHISHY <3", "Error 404: Phishy stole my <3", "URGENT", "AI-Powered",
   "social engineering", "nmap", "malicious", "lookalike domain",
-  "TLS", "<3 PHISHY <3", "payload", "Team Phishy.", "Phishy = 100% My Tool", "MAXXING",
+  "TLS", "<3 PHISHY <3", "payload", "TEAM PHISHY.", "Phishy = 100% My Tool", "MAXXING",
 ];
 
 function initBackgroundTerms() {
