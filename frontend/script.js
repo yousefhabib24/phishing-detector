@@ -40,10 +40,10 @@ function t(key) {
 // changing the site's actual color palette.
 const BG_TERMS = [
   "SPF", "DKIM", "DMARC", "PHISHING", "SPOOFED", "VERIFIED",
-  "0x4F2A91", "0x9B3C7D", "Bilingual", "sha256:", "base64://",
-  "PHISHY <3", "authentication=fail", "URGENT", "AI-Powered",
+  "I <3 PHISHY", "PHISHY <3 U", "Bilingual", "sha256:", "base64://",
+  "PHISHY <3", "Error 404: Phishy stole my <3", "URGENT", "AI-Powered",
   "social engineering", "nmap", "malicious", "lookalike domain",
-  "TLS", "192.168.1.5", "payload", "zero-day", "CVE-2024", "MAXXING",
+  "TLS", "<3 PHISHY <3", "payload", "TEAM PHISHY", "Phishy = 100% My Tool", "MAXXING",
 ];
 
 function initBackgroundTerms() {
