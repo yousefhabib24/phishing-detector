@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from heuristics import analyze as run_heuristics
 from heuristics import analyze_eml as run_heuristics_on_eml
+from heuristics import analyze_sms as run_heuristics_on_sms
 from llm_analysis import analyze_with_llm, extract_text_from_image, Verdict
 
 
@@ -69,10 +70,38 @@ def check_email_image_detailed(image_bytes: bytes, media_type: str):
     if not image_bytes:
         raise ValueError("uploaded image is empty")
 
-    reconstructed_text = extract_text_from_image(image_bytes, media_type)
+    reconstructed_text = extract_text_from_image(image_bytes, media_type, channel="email")
     if not reconstructed_text.strip():
         raise ValueError("Could not read any text from the uploaded image.")
 
     heuristics_result = run_heuristics(reconstructed_text)
+    verdict = analyze_with_llm(reconstructed_text, heuristics_result)
+    return verdict, heuristics_result
+
+
+def check_sms_text_detailed(sms_text: str):
+    """SMS equivalent of check_email_detailed -- same LLM reasoning pipeline,
+    but SMS-specific heuristics (no domain/email format, uses the
+    sender-vs-claimed-brand check instead)."""
+    if not sms_text or not sms_text.strip():
+        raise ValueError("sms_text must not be empty")
+
+    heuristics_result = run_heuristics_on_sms(sms_text)
+    verdict = analyze_with_llm(sms_text, heuristics_result)
+    return verdict, heuristics_result
+
+
+def check_sms_image_detailed(image_bytes: bytes, media_type: str):
+    """SMS equivalent of check_email_image_detailed -- reads a screenshot of
+    a text message conversation (using the SMS-specific extraction prompt),
+    then reuses the SMS heuristics + reasoning pipeline."""
+    if not image_bytes:
+        raise ValueError("uploaded image is empty")
+
+    reconstructed_text = extract_text_from_image(image_bytes, media_type, channel="sms")
+    if not reconstructed_text.strip():
+        raise ValueError("Could not read any text from the uploaded image.")
+
+    heuristics_result = run_heuristics_on_sms(reconstructed_text)
     verdict = analyze_with_llm(reconstructed_text, heuristics_result)
     return verdict, heuristics_result

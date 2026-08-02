@@ -34,7 +34,7 @@ except ImportError:  # pragma: no cover
 
 MODEL = "claude-haiku-4-5-20251001"
 
-EXTRACTION_PROMPT = """You are looking at a screenshot of an email. Read everything visible \
+EXTRACTION_PROMPT_EMAIL = """You are looking at a screenshot of an email. Read everything visible \
 and reconstruct it as plain text, in exactly this format:
 
 From: <sender name and/or email address, exactly as shown>
@@ -46,13 +46,27 @@ Include any visible links/URLs exactly as written. If something is cut off, blur
 fully visible, include what you can read and don't guess at the missing parts. Respond with \
 ONLY the reconstructed text -- no commentary, no explanation, nothing else."""
 
+EXTRACTION_PROMPT_SMS = """You are looking at a screenshot of a text/SMS message conversation. \
+Read everything visible and reconstruct the SUSPICIOUS message as plain text, in exactly this \
+format:
 
-def extract_text_from_image(image_bytes: bytes, media_type: str) -> str:
-    """Reads a screenshot of an email and reconstructs it as plain text, so it
-    can flow through the exact same heuristics + reasoning pipeline as pasted
-    text. Unlike the rest of this file, there's no mock-mode fallback here --
-    reading an image genuinely requires calling the real model, since there's
-    no rule-based way to fake 'reading a picture'."""
+From: <sender's phone number or sender ID, exactly as shown>
+
+<the full message text, as accurately as possible>
+
+If there are multiple messages in the screenshot, focus on the one that looks like it's from an \
+unknown/suspicious sender, not the user's own replies. Include any visible links/URLs exactly \
+as written. If something is cut off, blurry, or not fully visible, include what you can read \
+and don't guess at the missing parts. Respond with ONLY the reconstructed text -- no \
+commentary, no explanation, nothing else."""
+
+
+def extract_text_from_image(image_bytes: bytes, media_type: str, channel: str = "email") -> str:
+    """Reads a screenshot (of an email or an SMS conversation) and reconstructs
+    it as plain text, so it can flow through the exact same heuristics +
+    reasoning pipeline as pasted text. Unlike the rest of this file, there's
+    no mock-mode fallback here -- reading an image genuinely requires calling
+    the real model, since there's no rule-based way to fake 'reading a picture'."""
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key or anthropic is None:
         raise ValueError(
@@ -60,6 +74,8 @@ def extract_text_from_image(image_bytes: bytes, media_type: str) -> str:
             "configured). Try Paste Text or Upload .eml File instead, which support "
             "a mock/demo mode without a key."
         )
+
+    extraction_prompt = EXTRACTION_PROMPT_SMS if channel == "sms" else EXTRACTION_PROMPT_EMAIL
 
     client = anthropic.Anthropic(api_key=api_key)
     message = client.messages.create(
@@ -77,7 +93,7 @@ def extract_text_from_image(image_bytes: bytes, media_type: str) -> str:
                             "data": base64.b64encode(image_bytes).decode("utf-8"),
                         },
                     },
-                    {"type": "text", "text": EXTRACTION_PROMPT},
+                    {"type": "text", "text": extraction_prompt},
                 ],
             }
         ],
@@ -88,30 +104,33 @@ def extract_text_from_image(image_bytes: bytes, media_type: str) -> str:
     ).strip()
 
 SYSTEM_PROMPT = """You are a phishing-detection assistant used inside a public web tool. \
-A non-technical person has pasted an email they're unsure about. You will be given:
-1. The raw email text they pasted
+A non-technical person has pasted a message (an email or a text/SMS message) they're unsure \
+about. You will be given:
+1. The raw message text they pasted
 2. A list of objective technical findings already detected by a separate rule-based system \
 (you should treat these findings as established facts -- do not doubt or re-derive them)
 
 Your job is to weigh the technical findings together with the actual content, tone, and \
-context of the email, then produce ONE final verdict.
+context of the message, then produce ONE final verdict.
 
 Think about things the rule-based system CANNOT detect on its own, such as:
-- Does the email's claimed identity make sense given what it's asking for?
+- Does the message's claimed identity make sense given what it's asking for?
 - Is there a plausible, low-risk explanation for anything that looks suspicious?
-- Does the overall narrative of the email hold together, or does it feel like a pretext?
+- Does the overall narrative of the message hold together, or does it feel like a pretext?
 - Are there social-engineering patterns even if no technical red flags were found (e.g. \
-a fake "CEO" asking for a favor, romance/relationship pretexts, fake job offers)?
+a fake "CEO" asking for a favor, romance/relationship pretexts, fake job offers, fake \
+delivery/toll/fine notices common in SMS scams)?
 
 IMPORTANT -- weighing evidence types: most findings from the rule-based system are pattern \
 matches (e.g. "this domain looks similar to a known brand"), which are strong but not \
-absolute signals. However, any finding with an id ending in "_auth_failed" (SPF/DKIM/DMARC) \
-represents a real cryptographic verification already performed by the email's own receiving \
-mail server -- not a guess, not a pattern match, an actual technical fact. Treat any such \
-finding as very strong evidence of spoofing, close to conclusive on its own, even if the \
-email's wording otherwise seems calm or professional. Conversely, if authentication_results \
-shows "pass" for all three (spf, dkim, dmarc), treat that as strong (though not absolute -- \
-a compromised legitimate account could still pass) evidence in favor of legitimacy.
+absolute signals. However, any finding with an id ending in "_auth_failed" (SPF/DKIM/DMARC -- \
+only ever present for emails, since SMS has no equivalent) represents a real cryptographic \
+verification already performed by the message's own receiving mail server -- not a guess, \
+not a pattern match, an actual technical fact. Treat any such finding as very strong evidence \
+of spoofing, close to conclusive on its own, even if the message's wording otherwise seems \
+calm or professional. Conversely, if authentication_results shows "pass" for all three (spf, \
+dkim, dmarc), treat that as strong (though not absolute -- a compromised legitimate account \
+could still pass) evidence in favor of legitimacy.
 
 Respond with ONLY valid JSON, no other text, in exactly this shape:
 {
@@ -131,12 +150,12 @@ Guidelines:
 - STRICT RULE: if risk_level is "safe", red_flags MUST be an empty list []. Any minor \
 observations that aren't serious enough to change the verdict belong in reassurance_notes \
 instead, phrased as reassurance (e.g. "The vague wording is common in normal follow-up \
-emails and isn't concerning on its own"). If something is concerning enough to list as a \
+messages and isn't concerning on its own"). If something is concerning enough to list as a \
 red_flag, the risk_level cannot be "safe" -- use "suspicious" instead.
 - Keep language simple. Avoid jargon like "DKIM" or "SPF" -- translate technical findings \
 into plain consequences (e.g. "the sender's address doesn't actually belong to the company it claims to be from")
-- Do not invent findings that aren't supported by the provided evidence or the email text itself
-- If the email is too short/ambiguous to judge confidently, say so honestly rather than guessing
+- Do not invent findings that aren't supported by the provided evidence or the message text itself
+- If the message is too short/ambiguous to judge confidently, say so honestly rather than guessing
 """
 
 # Maps our lightweight detect_language() result to a clear instruction
@@ -169,11 +188,11 @@ def _build_user_message(email_text: str, heuristics: HeuristicsResult, response_
     findings_json = json.dumps(heuristics.to_summary_dict(), indent=2)
     language_name = _LANGUAGE_NAMES.get(response_language, "English")
     return (
-        f"EMAIL TEXT PASTED BY USER:\n---\n{email_text.strip()}\n---\n\n"
+        f"MESSAGE TEXT PASTED BY USER (email or SMS):\n---\n{email_text.strip()}\n---\n\n"
         f"TECHNICAL FINDINGS FROM RULE-BASED SYSTEM:\n{findings_json}\n\n"
         f"LANGUAGE INSTRUCTION: write the \"summary\", \"red_flags\" (title and explanation), "
         f"and \"reassurance_notes\" fields in {language_name}, matching the language of the "
-        f"original email so the reader gets a natively understandable explanation. Keep "
+        f"original message so the reader gets a natively understandable explanation. Keep "
         f"\"risk_level\" and \"confidence\" as their exact English enum values regardless "
         f"(e.g. \"safe\", \"suspicious\", \"dangerous\", \"low\", \"medium\", \"high\") -- "
         f"only the human-readable text fields should be translated.\n\n"

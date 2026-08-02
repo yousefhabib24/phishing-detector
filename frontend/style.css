@@ -75,6 +75,69 @@ a:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visib
 .brand-link { display: flex; align-items: center; }
 .brand-logo { height: 128px; width: auto; display: block; }
 .nav-right { display: flex; align-items: center; gap: 14px; }
+.nav-left { display: flex; align-items: center; gap: 28px; }
+
+.nav-tools { position: relative; }
+.nav-tools-btn {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  cursor: pointer;
+}
+.nav-tools-btn:hover { color: var(--indigo-hover); }
+.nav-tools-chevron { font-size: 10px; }
+
+.nav-tools-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  min-width: 230px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  z-index: 20;
+}
+.nav-tools-menu.open { display: block; }
+[dir="rtl"] .nav-tools-menu { left: auto; right: 0; }
+
+.nav-tools-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+[dir="rtl"] .nav-tools-item { text-align: right; }
+.nav-tools-item:hover:not(.disabled) { background: var(--surface-2); }
+.nav-tools-item.disabled { color: var(--text-muted); cursor: default; }
+.coming-soon {
+  margin-inline-start: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--text-muted);
+}
 .nav-cta {
   font-family: var(--font-display);
   font-weight: 600;
@@ -304,8 +367,29 @@ a:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visib
 
 .tool-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
 
-.tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
-.tab-btn {
+/* Top-level channel selector (Email vs SMS) -- a bigger, more prominent
+   toggle than the tabs beneath it, since switching channel changes which
+   whole set of tabs/inputs is shown. */
+.channel-selector { display: flex; gap: 10px; margin-bottom: 24px; }
+.channel-btn {
+  flex: 1;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 12px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.channel-btn.active { background: var(--indigo); color: white; border-color: var(--indigo); }
+.channel-btn:not(.active):hover { border-color: var(--indigo-hover); color: var(--text); }
+
+.channel-content { display: none; }
+.channel-content.active { display: block; }
+
+.tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }.tab-btn {
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 14px;
@@ -321,7 +405,7 @@ a:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visib
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
 
-textarea#email-text {
+textarea#email-text, textarea#sms-text {
   width: 100%;
   min-height: 220px;
   background: var(--surface-2);
@@ -333,7 +417,7 @@ textarea#email-text {
   font-size: 14px;
   resize: vertical;
 }
-textarea#email-text:focus {
+textarea#email-text:focus, textarea#sms-text:focus {
   border-color: var(--indigo-hover);
   outline: none;
 }
@@ -442,6 +526,10 @@ textarea#email-text:focus {
      Hiding it here avoids the nav wrapping onto an awkward, unbalanced
      second row on narrow screens. Desktop is untouched. */
   .nav-cta { display: none; }
+  /* Same reasoning as the CTA above -- the tool section (with its own
+     channel selector) is one scroll away, so a nav dropdown for
+     discoverability is redundant clutter on a small screen. */
+  .nav-tools { display: none; }
 
   #hero-headline { font-size: 30px; }
   /* Much tighter top padding than desktop -- the previous 48px, combined

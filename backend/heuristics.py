@@ -102,6 +102,14 @@ FROM_LINE_REGEX = re.compile(
     r"^from:\s*(?P<name>.*?)?\s*<?(?P<email>[\w.+-]+@[\w-]+\.[\w.-]+)>?\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
+
+# For SMS: the sender is usually just a phone number or a short
+# alphanumeric ID (e.g. "DHL", "62884"), not a name+email pair -- a much
+# looser pattern than the email FROM_LINE_REGEX above.
+SMS_FROM_LINE_REGEX = re.compile(
+    r"^from:\s*(?P<sender>.+?)\s*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 EMAIL_DOMAIN_REGEX = re.compile(r"@([\w-]+(?:\.[\w-]+)+)")
 
 # Arabic Unicode ranges: main block, Supplement, and Extended-A. Used only
@@ -371,6 +379,74 @@ def analyze(text: str) -> HeuristicsResult:
     )
 
     result.findings.extend(check_sender_lookalike(sender_name, sender_email))
+    result.findings.extend(check_suspicious_urls(urls))
+    result.findings.extend(check_urgency_language(text))
+    result.findings.extend(check_sensitive_requests(text))
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# SMS / smishing support
+# ---------------------------------------------------------------------------
+
+def _extract_sms_sender(text: str) -> str | None:
+    match = SMS_FROM_LINE_REGEX.search(text)
+    return match.group("sender").strip() if match else None
+
+
+def check_sms_brand_mismatch(sender: str | None, text: str) -> list[Finding]:
+    """SMS has no domain to check the way email does -- there's no
+    equivalent of 'the sender address doesn't match the real domain'.
+    Instead, this checks for a real-world SMS scam pattern: the MESSAGE
+    claims to be from a known brand/bank, but the sender field is just an
+    ordinary-looking phone number rather than a registered short code or
+    the brand's actual alphanumeric sender ID. This is a weaker signal
+    than the email domain check (legitimate businesses sometimes do text
+    from real numbers), so it's flagged as medium severity, not high."""
+    findings: list[Finding] = []
+    if not sender:
+        return findings
+
+    text_lower = text.lower()
+    # A short code is typically 5-6 digits; a real phone number is longer.
+    # An alphanumeric sender ID (e.g. "DHL", "AMAZON") contains letters.
+    looks_like_ordinary_number = bool(re.fullmatch(r"[+]?[\d\s().-]{8,}", sender))
+
+    for brand in COMMON_BRANDS:
+        if brand in text_lower and looks_like_ordinary_number:
+            findings.append(Finding(
+                id="sms_sender_brand_mismatch",
+                severity="medium",
+                summary=(
+                    f"This message claims to be from '{brand.title()}', but it was sent from "
+                    f"an ordinary phone number rather than a registered short code or the "
+                    f"company's official sender ID. Legitimate businesses usually send SMS "
+                    f"from a consistent, registered sender ID, not a random number."
+                ),
+                evidence=sender,
+            ))
+            break
+
+    return findings
+
+
+def analyze_sms(text: str) -> HeuristicsResult:
+    """Entry point for SMS/smishing text (pasted directly, or reconstructed
+    from a screenshot). Reuses every channel-agnostic check (urgency
+    language, sensitive-info requests, suspicious URLs) from the email
+    pipeline, and adds one SMS-specific check in place of the email
+    domain-lookalike check, which doesn't apply here."""
+    sender = _extract_sms_sender(text)
+    urls = _extract_urls(text)
+
+    result = HeuristicsResult(
+        urls_found=urls,
+        sender_name=sender,
+        sender_email=None,
+    )
+
+    result.findings.extend(check_sms_brand_mismatch(sender, text))
     result.findings.extend(check_suspicious_urls(urls))
     result.findings.extend(check_urgency_language(text))
     result.findings.extend(check_sensitive_requests(text))

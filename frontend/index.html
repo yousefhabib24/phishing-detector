@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PhishyMax | Free AI Email Checker</title>
+<title>PhishyMax — Free AI Email Checker</title>
 <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png">
@@ -17,9 +17,32 @@
 
 <nav class="nav">
   <div class="nav-inner">
-    <a href="#" class="brand-link" aria-label="PhishyMax">
-      <img src="assets/logo.png" class="brand-logo" data-i18n-alt="brandAlt" alt="PhishyMax">
-    </a>
+    <div class="nav-left">
+      <a href="#" class="brand-link" aria-label="PhishyMax">
+        <img src="assets/logo.png" class="brand-logo" data-i18n-alt="brandAlt" alt="PhishyMax">
+      </a>
+      <div class="nav-tools" id="nav-tools">
+        <button class="nav-tools-btn" id="nav-tools-btn" aria-haspopup="true" aria-expanded="false">
+          <span data-i18n="navTools">Tools</span> <span class="nav-tools-chevron">▾</span>
+        </button>
+        <div class="nav-tools-menu" id="nav-tools-menu">
+          <button class="nav-tools-item" data-goto-channel="email">
+            📧 <span data-i18n="toolEmailPhishing">Email Phishing</span>
+          </button>
+          <button class="nav-tools-item" data-goto-channel="sms">
+            💬 <span data-i18n="toolSmishing">Smishing</span>
+          </button>
+          <button class="nav-tools-item disabled" disabled>
+            🔲 <span data-i18n="toolQuishing">Quishing</span>
+            <span class="coming-soon" data-i18n="comingSoon">Coming Soon</span>
+          </button>
+          <button class="nav-tools-item disabled" disabled>
+            📞 <span data-i18n="toolVishing">Vishing</span>
+            <span class="coming-soon" data-i18n="comingSoon">Coming Soon</span>
+          </button>
+        </div>
+      </div>
+    </div>
     <div class="nav-right">
       <a href="#tool" class="nav-cta" data-i18n="navCta">Check an email</a>
       <div class="lang-toggle" role="group" aria-label="Language">
@@ -92,53 +115,92 @@
 </section>
 
 <section class="tool" id="tool">
-  <h2 data-i18n="toolTitle">Check an email</h2>
+  <h2 data-i18n="toolTitle">Check a message</h2>
 
   <div class="disclaimer" data-i18n="disclaimer">
     🔒 Don't paste real passwords or verification codes. This is an early,
-    independent project — great for checking suspicious emails, not for
+    independent project — great for checking suspicious messages, not for
     storing confidential information.
   </div>
 
   <div class="tool-panel">
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="paste" data-i18n="tabPaste">Paste Text</button>
-      <button class="tab-btn" data-tab="image" data-i18n="tabImage">Upload Image</button>
-      <button class="tab-btn" data-tab="upload" data-i18n="tabUpload">Upload .eml File</button>
+    <div class="channel-selector" role="group" aria-label="Channel">
+      <button class="channel-btn active" data-channel="email" data-i18n="channelEmail">📧 Email</button>
+      <button class="channel-btn" data-channel="sms" data-i18n="channelSms">💬 SMS / Text</button>
     </div>
 
-    <div class="tab-panel active" id="tab-paste">
-      <textarea id="email-text" data-i18n-placeholder="textareaPlaceholder" placeholder="From: PayPal Support <support@example.com>
+    <div class="channel-content active" id="channel-email">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="paste" data-i18n="tabPaste">Paste Text</button>
+        <button class="tab-btn" data-tab="image" data-i18n="tabImage">Upload Image</button>
+        <button class="tab-btn" data-tab="upload" data-i18n="tabUpload">Upload .eml File</button>
+      </div>
+
+      <div class="tab-panel active" id="tab-paste">
+        <textarea id="email-text" data-i18n-placeholder="textareaPlaceholder" placeholder="From: PayPal Support <support@example.com>
 Subject: Your account will be suspended
 
 Dear Customer, we noticed unusual activity..."></textarea>
-      <button class="btn-primary" id="check-text-btn" data-i18n="checkBtn">Check This Email</button>
+        <button class="btn-primary" id="check-text-btn" data-i18n="checkBtn">Check This Email</button>
+      </div>
+
+      <div class="tab-panel" id="tab-image">
+        <p class="upload-hint" data-i18n="uploadImageHint">
+          Upload a screenshot of the email instead of typing it out -- handy if
+          you're on your phone. This uses live AI to read the image, so it
+          needs a real connection (no demo/mock mode for this option).
+        </p>
+        <label class="file-drop" id="image-drop">
+          <input type="file" id="email-image" accept="image/*" hidden>
+          <span id="image-drop-label" data-i18n="imageDropLabel">Click to choose a screenshot, or drag one here</span>
+        </label>
+        <button class="btn-primary" id="check-image-btn" data-i18n="checkBtn">Check This Email</button>
+      </div>
+
+      <div class="tab-panel" id="tab-upload">
+        <p class="upload-hint" data-i18n="uploadHint">
+          Uploading the real .eml file unlocks stronger checks — real
+          SPF/DKIM/DMARC results a pasted email can never include. Look for
+          "Show Original" or "Download message" in your email app.
+        </p>
+        <label class="file-drop" id="file-drop">
+          <input type="file" id="email-file" accept=".eml" hidden>
+          <span id="file-drop-label" data-i18n="fileDropLabel">Click to choose a .eml file, or drag one here</span>
+        </label>
+        <button class="btn-primary" id="check-file-btn" data-i18n="checkBtn">Check This Email</button>
+      </div>
     </div>
 
-    <div class="tab-panel" id="tab-image">
-      <p class="upload-hint" data-i18n="uploadImageHint">
-        Upload a screenshot of the email instead of typing it out -- handy if
-        you're on your phone. This uses live AI to read the image, so it
-        needs a real connection (no demo/mock mode for this option).
-      </p>
-      <label class="file-drop" id="image-drop">
-        <input type="file" id="email-image" accept="image/*" hidden>
-        <span id="image-drop-label" data-i18n="imageDropLabel">Click to choose a screenshot, or drag one here</span>
-      </label>
-      <button class="btn-primary" id="check-image-btn" data-i18n="checkBtn">Check This Email</button>
-    </div>
+    <div class="channel-content" id="channel-sms">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="sms-paste" data-i18n="tabPaste">Paste Text</button>
+        <button class="tab-btn" data-tab="sms-image" data-i18n="tabImage">Upload Image</button>
+      </div>
 
-    <div class="tab-panel" id="tab-upload">
-      <p class="upload-hint" data-i18n="uploadHint">
-        Uploading the real .eml file unlocks stronger checks — real
-        SPF/DKIM/DMARC results a pasted email can never include. Look for
-        "Show Original" or "Download message" in your email app.
-      </p>
-      <label class="file-drop" id="file-drop">
-        <input type="file" id="email-file" accept=".eml" hidden>
-        <span id="file-drop-label" data-i18n="fileDropLabel">Click to choose a .eml file, or drag one here</span>
-      </label>
-      <button class="btn-primary" id="check-file-btn" data-i18n="checkBtn">Check This Email</button>
+      <div class="tab-panel active" id="tab-sms-paste">
+        <p class="upload-hint" data-i18n="smsPasteHint">
+          Paste the sender and message text, e.g. the "From" number/ID on its
+          own line, then the message.
+        </p>
+        <textarea id="sms-text" data-i18n-placeholder="smsTextareaPlaceholder" placeholder="From: +1 202 555 0187
+
+Your package could not be delivered. Confirm your address and pay a
+redelivery fee here: http://example.com/pay"></textarea>
+        <button class="btn-primary" id="check-sms-text-btn" data-i18n="checkSmsBtn">Check This Message</button>
+      </div>
+
+      <div class="tab-panel" id="tab-sms-image">
+        <p class="upload-hint" data-i18n="uploadSmsImageHint">
+          Upload a screenshot of the text message conversation. This uses
+          live AI to read the image, so it needs a real connection (no
+          demo/mock mode for this option).
+        </p>
+        <label class="file-drop" id="sms-image-drop">
+          <input type="file" id="sms-image" accept="image/*" hidden>
+          <span id="sms-image-drop-label" data-i18n="imageDropLabel">Click to choose a screenshot, or drag one here</span>
+        </label>
+        <button class="btn-primary" id="check-sms-image-btn" data-i18n="checkSmsBtn">Check This Message</button>
+      </div>
     </div>
 
     <p class="checks-remaining" id="checks-remaining"></p>

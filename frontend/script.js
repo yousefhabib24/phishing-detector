@@ -40,10 +40,10 @@ function t(key) {
 // changing the site's actual color palette.
 const BG_TERMS = [
   "SPF", "DKIM", "DMARC", "PHISHING", "SPOOFED", "VERIFIED",
-  "I <3 PHISHY", "PHISHY <3 U", "Bilingual", "sha256:", "base64://",
-  "PHISHY <3", "Error 404: Phishy stole my <3", "URGENT", "AI-Powered",
-  "social engineering", "nmap", "malicious", "lookalike domain",
-  "TLS", "<3 PHISHY <3", "payload", "TEAM PHISHY.", "Phishy = 100% My Tool", "MAXXING",
+  "0x4F2A91", "0x9B3C7D", "0xDEADBEEF", "sha256:", "base64://",
+  "smtp.mailfrom=", "authentication=fail", "quarantine", "credential harvest",
+  "social engineering", "typosquat", "malicious", "lookalike domain",
+  "TLS", "192.168.1.5", "payload", "zero-day", "CVE-2024", "urgent.exe",
 ];
 
 function initBackgroundTerms() {
@@ -230,10 +230,53 @@ async function handleApiResponse(response) {
 document.getElementById("lang-en").addEventListener("click", () => applyLanguage("en"));
 document.getElementById("lang-ar").addEventListener("click", () => applyLanguage("ar"));
 
+function switchToChannel(channelName) {
+  document.querySelectorAll(".channel-btn").forEach((b) => b.classList.remove("active"));
+  document.querySelectorAll(".channel-content").forEach((c) => c.classList.remove("active"));
+  document.querySelector(`.channel-btn[data-channel="${channelName}"]`)?.classList.add("active");
+  document.getElementById(`channel-${channelName}`)?.classList.add("active");
+}
+
+document.querySelectorAll(".channel-btn").forEach((btn) => {
+  btn.addEventListener("click", () => switchToChannel(btn.dataset.channel));
+});
+
+// --- "Tools" nav dropdown -------------------------------------------------
+const navToolsBtn = document.getElementById("nav-tools-btn");
+const navToolsMenu = document.getElementById("nav-tools-menu");
+
+navToolsBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  const isOpen = navToolsMenu.classList.toggle("open");
+  navToolsBtn.setAttribute("aria-expanded", String(isOpen));
+});
+
+// Close the dropdown on any click outside it.
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#nav-tools")) {
+    navToolsMenu.classList.remove("open");
+    navToolsBtn.setAttribute("aria-expanded", "false");
+  }
+});
+
+document.querySelectorAll(".nav-tools-item[data-goto-channel]").forEach((item) => {
+  item.addEventListener("click", () => {
+    switchToChannel(item.dataset.gotoChannel);
+    navToolsMenu.classList.remove("open");
+    navToolsBtn.setAttribute("aria-expanded", "false");
+    document.getElementById("tool").scrollIntoView({ behavior: "smooth" });
+  });
+});
+
 document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+    // Scoped to the enclosing .channel-content -- without this, switching
+    // an SMS tab would also wipe the "active" state of the Email tabs
+    // (they share the same .tab-btn/.tab-panel classes), leaving Email
+    // with no visible tab the next time you switch back to it.
+    const scope = btn.closest(".channel-content") || document;
+    scope.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+    scope.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById(`tab-${btn.dataset.tab}`).classList.add("active");
   });
@@ -286,6 +329,7 @@ function setupDropZone(dropZoneId, inputId, labelId) {
 
 const fileInput = setupDropZone("file-drop", "email-file", "file-drop-label");
 const imageInput = setupDropZone("image-drop", "email-image", "image-drop-label");
+const smsImageInput = setupDropZone("sms-image-drop", "sms-image", "sms-image-drop-label");
 
 document.getElementById("check-text-btn").addEventListener("click", async () => {
   const emailText = document.getElementById("email-text").value.trim();
@@ -300,6 +344,44 @@ document.getElementById("check-text-btn").addEventListener("click", async () => 
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/check-text`, { method: "POST", body: formData });
+    await handleApiResponse(response);
+  } catch (err) {
+    renderError(t("unreachable"));
+  }
+});
+
+document.getElementById("check-sms-text-btn").addEventListener("click", async () => {
+  const smsText = document.getElementById("sms-text").value.trim();
+  if (!smsText) {
+    renderError(t("pasteBeforeChecking"));
+    return;
+  }
+  document.getElementById("result-area").innerHTML = `<p style="color:var(--text-muted);">${t("analyzing")}</p>`;
+
+  const formData = new FormData();
+  formData.append("sms_text", smsText);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/check-sms-text`, { method: "POST", body: formData });
+    await handleApiResponse(response);
+  } catch (err) {
+    renderError(t("unreachable"));
+  }
+});
+
+document.getElementById("check-sms-image-btn").addEventListener("click", async () => {
+  const file = smsImageInput.files[0];
+  if (!file) {
+    renderError(t("uploadBeforeChecking"));
+    return;
+  }
+  document.getElementById("result-area").innerHTML = `<p style="color:var(--text-muted);">${t("analyzing")}</p>`;
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/check-sms-image`, { method: "POST", body: formData });
     await handleApiResponse(response);
   } catch (err) {
     renderError(t("unreachable"));
