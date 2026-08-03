@@ -330,6 +330,7 @@ function setupDropZone(dropZoneId, inputId, labelId) {
 const fileInput = setupDropZone("file-drop", "email-file", "file-drop-label");
 const imageInput = setupDropZone("image-drop", "email-image", "image-drop-label");
 const smsImageInput = setupDropZone("sms-image-drop", "sms-image", "sms-image-drop-label");
+const qrImageInput = setupDropZone("qr-image-drop", "qr-image", "qr-image-drop-label");
 
 document.getElementById("check-text-btn").addEventListener("click", async () => {
   const emailText = document.getElementById("email-text").value.trim();
@@ -382,6 +383,25 @@ document.getElementById("check-sms-image-btn").addEventListener("click", async (
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/check-sms-image`, { method: "POST", body: formData });
+    await handleApiResponse(response);
+  } catch (err) {
+    renderError(t("unreachable"));
+  }
+});
+
+document.getElementById("check-qr-btn").addEventListener("click", async () => {
+  const file = qrImageInput.files[0];
+  if (!file) {
+    renderError(t("uploadBeforeChecking"));
+    return;
+  }
+  document.getElementById("result-area").innerHTML = `<p style="color:var(--text-muted);">${t("analyzing")}</p>`;
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/check-qr-image`, { method: "POST", body: formData });
     await handleApiResponse(response);
   } catch (err) {
     renderError(t("unreachable"));

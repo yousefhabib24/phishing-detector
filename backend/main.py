@@ -25,6 +25,7 @@ from core import (
     check_email_image_detailed,
     check_sms_text_detailed,
     check_sms_image_detailed,
+    check_qr_image_detailed,
 )
 
 
@@ -189,6 +190,23 @@ async def api_check_sms_image(request: Request, file: UploadFile = File(...)) ->
 
     try:
         verdict, heuristics_result = check_sms_image_detailed(image_bytes, media_type)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
+
+    return _build_response(verdict, heuristics_result)
+
+
+@app.post("/api/check-qr-image")
+async def api_check_qr_image(request: Request, file: UploadFile = File(...)) -> dict:
+    client_ip = request.client.host if request.client else "unknown"
+    _check_rate_limit(client_ip)
+
+    image_bytes = await file.read()
+
+    try:
+        verdict, heuristics_result = check_qr_image_detailed(image_bytes)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001

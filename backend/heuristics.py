@@ -455,6 +455,51 @@ def analyze_sms(text: str) -> HeuristicsResult:
 
 
 # ---------------------------------------------------------------------------
+# QR code / quishing support
+# ---------------------------------------------------------------------------
+
+def decode_qr_url(image_bytes: bytes) -> str | None:
+    """Decodes a QR code from raw image bytes using OpenCV's built-in
+    detector -- a deterministic computer-vision algorithm, NOT the AI. QR
+    codes are dense, error-correction-encoded patterns designed for
+    algorithmic decoding, not general visual understanding -- a vision LLM
+    asked to 'read' one directly is unreliable in a way a real decoder
+    simply isn't. Returns None if no QR code was found in the image."""
+    import cv2
+    import numpy as np
+
+    array = np.frombuffer(image_bytes, dtype=np.uint8)
+    image = cv2.imdecode(array, cv2.IMREAD_COLOR)
+    if image is None:
+        return None
+
+    detector = cv2.QRCodeDetector()
+    data, _points, _straight_qrcode = detector.detectAndDecode(image)
+    return data if data else None
+
+
+def analyze_qr_url(url: str) -> tuple[HeuristicsResult, str]:
+    """Entry point for a decoded QR URL. Reuses check_suspicious_urls --
+    the exact same lookalike-domain, IP-based-link, and shortener checks
+    already built for links found inside emails/SMS -- since a URL is a
+    URL regardless of how it reached us. Returns a synthetic text block
+    describing the scan, so the LLM reasoning layer (which expects a
+    'message') has natural context to reason about."""
+    findings = check_suspicious_urls([url])
+    result = HeuristicsResult(
+        urls_found=[url],
+        sender_name=None,
+        sender_email=None,
+    )
+    result.findings.extend(findings)
+
+    synthetic_text = (
+        f"A QR code was scanned. It encodes the following destination URL:\n{url}"
+    )
+    return result, synthetic_text
+
+
+# ---------------------------------------------------------------------------
 # .eml file parsing (unlocks real SPF/DKIM/DMARC verification)
 # ---------------------------------------------------------------------------
 

@@ -11,6 +11,7 @@ from __future__ import annotations
 from heuristics import analyze as run_heuristics
 from heuristics import analyze_eml as run_heuristics_on_eml
 from heuristics import analyze_sms as run_heuristics_on_sms
+from heuristics import decode_qr_url, analyze_qr_url
 from llm_analysis import analyze_with_llm, extract_text_from_image, Verdict
 
 
@@ -104,4 +105,24 @@ def check_sms_image_detailed(image_bytes: bytes, media_type: str):
 
     heuristics_result = run_heuristics_on_sms(reconstructed_text)
     verdict = analyze_with_llm(reconstructed_text, heuristics_result)
+    return verdict, heuristics_result
+
+
+def check_qr_image_detailed(image_bytes: bytes):
+    """Entry point for an uploaded QR code image. Decodes the QR
+    deterministically (not via AI vision -- see decode_qr_url's docstring
+    for why), then reuses the same URL-analysis heuristics and LLM
+    reasoning pipeline as every other channel."""
+    if not image_bytes:
+        raise ValueError("uploaded image is empty")
+
+    url = decode_qr_url(image_bytes)
+    if not url:
+        raise ValueError(
+            "Could not detect a QR code in this image. Make sure the QR "
+            "code is clearly visible and not cropped or blurry."
+        )
+
+    heuristics_result, synthetic_text = analyze_qr_url(url)
+    verdict = analyze_with_llm(synthetic_text, heuristics_result)
     return verdict, heuristics_result

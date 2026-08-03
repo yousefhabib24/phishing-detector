@@ -32,9 +32,8 @@
           <button class="nav-tools-item" data-goto-channel="sms">
             💬 <span data-i18n="toolSmishing">Smishing</span>
           </button>
-          <button class="nav-tools-item disabled" disabled>
+          <button class="nav-tools-item" data-goto-channel="qr">
             🔲 <span data-i18n="toolQuishing">Quishing</span>
-            <span class="coming-soon" data-i18n="comingSoon">Coming Soon</span>
           </button>
           <button class="nav-tools-item disabled" disabled>
             📞 <span data-i18n="toolVishing">Vishing</span>
@@ -127,6 +126,7 @@
     <div class="channel-selector" role="group" aria-label="Channel">
       <button class="channel-btn active" data-channel="email" data-i18n="channelEmail">📧 Email</button>
       <button class="channel-btn" data-channel="sms" data-i18n="channelSms">💬 SMS / Text</button>
+      <button class="channel-btn" data-channel="qr" data-i18n="channelQr">🔲 QR Code</button>
     </div>
 
     <div class="channel-content active" id="channel-email">
@@ -201,6 +201,18 @@ redelivery fee here: http://example.com/pay"></textarea>
         </label>
         <button class="btn-primary" id="check-sms-image-btn" data-i18n="checkSmsBtn">Check This Message</button>
       </div>
+    </div>
+
+    <div class="channel-content" id="channel-qr">
+      <p class="upload-hint" data-i18n="uploadQrHint">
+        Upload or drag a photo/screenshot containing a QR code. We'll decode
+        it and check where it actually leads before you scan it yourself.
+      </p>
+      <label class="file-drop" id="qr-image-drop">
+        <input type="file" id="qr-image" accept="image/*" hidden>
+        <span id="qr-image-drop-label" data-i18n="imageDropLabel">Click to choose a screenshot, or drag one here</span>
+      </label>
+      <button class="btn-primary" id="check-qr-btn" data-i18n="checkQrBtn">Check This QR Code</button>
     </div>
 
     <p class="checks-remaining" id="checks-remaining"></p>
