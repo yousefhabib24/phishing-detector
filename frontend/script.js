@@ -41,7 +41,7 @@ function t(key) {
 const BG_TERMS = [
  "SPF", "DKIM", "DMARC", "PHISHING", "SPOOFED", "VERIFIED",
   "I <3 PHISHY", "PHISHY <3 U", "Bilingual", "sha256:", "base64://",
-  "PHISHY <3", "Error 404: Phishy stole my <3", "URGENT!!", "AI-Powered",
+  "PHISHY <3", "Error 404: Phishy stole my <3", "URGENT", "AI-Powered",
   "social engineering", "nmap", "malicious", "lookalike domain",
   "TLS", "<3 PHISHY <3", "payload", "TEAM PHISHY.", "Phishy = 100% My Tool", "MAXXING",
 ];
