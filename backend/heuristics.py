@@ -1,22 +1,11 @@
 """
 heuristics.py
 
-Rule-based detection layer for the phishing email checker.
-
-This module looks at the RAW TEXT a user pastes in (subject + body, and
-optionally a "From:" line if they included one) and extracts objective,
-checkable signals -- things that are either true or false, not a matter
-of AI judgment.
-
-These findings get handed to the LLM layer later, which reasons over
-them alongside the actual email content to produce a final verdict.
-
-Known limitation (v1): because we only accept pasted VISIBLE TEXT (not
-raw email source/headers), we can't verify SPF/DKIM/DMARC, and if a
-link's display text differs from its real destination, plain-text
-copy/paste usually loses that distinction. We flag any URLs we find in
-the text itself. Raw-header support is unlocked via analyze_eml() for
-uploaded .eml files (see below).
+Rule-based detection layer for the phishing checker. Looks at raw text
+(email, SMS, or a decoded QR URL) and extracts objective, checkable
+signals -- things that are either true or false, not a matter of AI
+judgment. These findings get handed to the LLM layer, which reasons over
+them alongside the actual content to produce a final verdict.
 """
 
 from __future__ import annotations
@@ -31,9 +20,6 @@ from email.message import Message
 # Reference data
 # ---------------------------------------------------------------------------
 
-# A small set of frequently-impersonated brands, used for lookalike-domain
-# detection. This is intentionally short for v1 -- easy to extend later,
-# or replace with a proper brand-domain database.
 COMMON_BRANDS = {
     "paypal": ["paypal.com"],
     "apple": ["apple.com", "icloud.com"],
@@ -66,20 +52,10 @@ URGENCY_PHRASES = [
     "failure to comply", "final notice", "within 24 hours",
     "within 48 hours", "account will be closed", "suspended",
     "unauthorized login", "security alert", "limited time",
-    # Arabic -- same underlying pressure/urgency tactics, translated.
-    # Added after discovering (via a real test case) that the English-only
-    # list found zero signal in a genuinely urgent Arabic phishing email --
-    # the check_suspicious_urls/check_sender_lookalike checks worked fine
-    # since they're language-independent, but text-pattern checks like this
-    # one were silently blind to non-English phishing.
-    "يرجى التحقق من حسابك",  # "please verify your account"
-    "سيتم تعليق حسابك",  # "your account will be suspended"
-    "نشاط غير عادي",  # "unusual activity"
-    "خلال 24 ساعة",  # "within 24 hours"
-    "تنبيه أمني عاجل",  # "urgent security alert"
-    "إجراء فوري",  # "immediate action"
-    "بشكل دائم",  # "permanently" (often paired with account closure threats)
-    "أكد هويتك",  # "confirm your identity"
+    # Arabic
+    "يرجى التحقق من حسابك", "سيتم تعليق حسابك", "نشاط غير عادي",
+    "خلال 24 ساعة", "تنبيه أمني عاجل", "إجراء فوري", "بشكل دائم",
+    "أكد هويتك",
 ]
 
 SENSITIVE_REQUEST_PHRASES = [
@@ -89,11 +65,8 @@ SENSITIVE_REQUEST_PHRASES = [
     "gift card", "itunes card", "routing number", "one-time password",
     "otp", "login credentials", "update your payment", "billing information",
     # Arabic
-    "أدخل كلمة المرور",  # "enter your password"
-    "رمز التحقق",  # "verification code" (OTP)
-    "رقم البطاقة",  # "card number"
-    "بيانات الحساب البنكي",  # "bank account details"
-    "تحويل بنكي",  # "wire transfer"
+    "أدخل كلمة المرور", "رمز التحقق", "رقم البطاقة",
+    "بيانات الحساب البنكي", "تحويل بنكي",
 ]
 
 
@@ -102,20 +75,11 @@ FROM_LINE_REGEX = re.compile(
     r"^from:\s*(?P<name>.*?)?\s*<?(?P<email>[\w.+-]+@[\w-]+\.[\w.-]+)>?\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
-
-# For SMS: the sender is usually just a phone number or a short
-# alphanumeric ID (e.g. "DHL", "62884"), not a name+email pair -- a much
-# looser pattern than the email FROM_LINE_REGEX above.
 SMS_FROM_LINE_REGEX = re.compile(
     r"^from:\s*(?P<sender>.+?)\s*$",
     re.IGNORECASE | re.MULTILINE,
 )
 EMAIL_DOMAIN_REGEX = re.compile(r"@([\w-]+(?:\.[\w-]+)+)")
-
-# Arabic Unicode ranges: main block, Supplement, and Extended-A. Used only
-# for the lightweight language check below -- not a general-purpose
-# language detector, just enough to decide which language the AI should
-# respond in.
 _ARABIC_CHAR_REGEX = re.compile(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]")
 
 
@@ -125,11 +89,10 @@ _ARABIC_CHAR_REGEX = re.compile(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]")
 
 @dataclass
 class Finding:
-    """A single objective signal found by the heuristics engine."""
     id: str
-    severity: str          # "high" | "medium" | "low"
-    summary: str            # short human-readable description
-    evidence: str = ""       # the specific text/url that triggered it
+    severity: str
+    summary: str
+    evidence: str = ""
 
 
 @dataclass
@@ -138,14 +101,9 @@ class HeuristicsResult:
     urls_found: list[str] = field(default_factory=list)
     sender_email: str | None = None
     sender_name: str | None = None
-    # Real SPF/DKIM/DMARC verdicts from the receiving mail server, only
-    # available when a raw .eml file was uploaded (not from pasted text).
-    # Each value is "pass", "fail", "softfail", "none", etc., or None if
-    # that check wasn't present in the email's headers at all.
     auth_results: dict = field(default_factory=dict)
 
     def to_summary_dict(self) -> dict:
-        """Compact representation to hand to the LLM prompt."""
         return {
             "sender_name": self.sender_name,
             "sender_email": self.sender_email,
@@ -159,11 +117,10 @@ class HeuristicsResult:
 
 
 # ---------------------------------------------------------------------------
-# Individual checks
+# Shared helpers
 # ---------------------------------------------------------------------------
 
 def _extract_sender(text: str) -> tuple[str | None, str | None]:
-    """Pull a sender name/email out of an optional 'From:' line, if present."""
     match = FROM_LINE_REGEX.search(text)
     if not match:
         return None, None
@@ -177,7 +134,6 @@ def _extract_urls(text: str) -> list[str]:
 
 
 def _levenshtein(a: str, b: str) -> int:
-    """Small edit-distance implementation (no external dependency needed)."""
     if a == b:
         return 0
     if len(a) < len(b):
@@ -200,10 +156,6 @@ def _domain_from_email(email: str) -> str | None:
 
 
 def detect_language(text: str) -> str:
-    """Lightweight language check -- NOT a general-purpose language
-    detector, just enough to decide which language the AI should write
-    its explanation in. Counts the proportion of Arabic-script characters
-    among all letters in the text; defaults to English otherwise."""
     if not text:
         return "english"
     arabic_chars = len(_ARABIC_CHAR_REGEX.findall(text))
@@ -215,9 +167,11 @@ def detect_language(text: str) -> str:
     return "english"
 
 
+# ---------------------------------------------------------------------------
+# Individual checks
+# ---------------------------------------------------------------------------
+
 def check_sender_lookalike(sender_name: str | None, sender_email: str | None) -> list[Finding]:
-    """Flag a sender whose display name references a brand but whose domain
-    doesn't match that brand's real domain(s) -- classic spoofing pattern."""
     findings: list[Finding] = []
     if not sender_name or not sender_email:
         return findings
@@ -305,13 +259,6 @@ def check_suspicious_urls(urls: list[str]) -> list[Finding]:
 
 
 def check_authentication_results(auth_results: dict) -> list[Finding]:
-    """Unlike every other check in this file, this one isn't pattern-matching
-    -- it's reading a verdict that was already cryptographically verified by
-    the RECEIVING mail server (Gmail, Outlook, etc.) before the email ever
-    reached the user. A failure here is much stronger evidence than anything
-    else we can detect from text alone, because it can't be faked by clever
-    wording -- it's a mathematical check on whether the sending server was
-    actually authorized to send as that domain."""
     findings: list[Finding] = []
     labels = {
         "spf": "SPF (sender server authorization)",
@@ -342,7 +289,7 @@ def check_urgency_language(text: str) -> list[Finding]:
         findings.append(Finding(
             id="urgency_language",
             severity="medium",
-            summary="The email uses urgency or pressure language, a common tactic to rush readers into acting without thinking.",
+            summary="The message uses urgency or pressure language, a common tactic to rush readers into acting without thinking.",
             evidence=", ".join(hits[:5]),
         ))
     return findings
@@ -356,19 +303,17 @@ def check_sensitive_requests(text: str) -> list[Finding]:
         findings.append(Finding(
             id="sensitive_info_request",
             severity="high",
-            summary="The email asks for sensitive information (credentials, payment details, or codes) that legitimate organizations rarely request via email.",
+            summary="The message asks for sensitive information (credentials, payment details, or codes) that legitimate organizations rarely request this way.",
             evidence=", ".join(hits[:5]),
         ))
     return findings
 
 
 # ---------------------------------------------------------------------------
-# Entry point
+# Entry point: email/general text
 # ---------------------------------------------------------------------------
 
 def analyze(text: str) -> HeuristicsResult:
-    """Run all heuristic checks against pasted email text and return a
-    structured result ready to hand off to the LLM analysis layer."""
     sender_name, sender_email = _extract_sender(text)
     urls = _extract_urls(text)
 
@@ -396,21 +341,11 @@ def _extract_sms_sender(text: str) -> str | None:
 
 
 def check_sms_brand_mismatch(sender: str | None, text: str) -> list[Finding]:
-    """SMS has no domain to check the way email does -- there's no
-    equivalent of 'the sender address doesn't match the real domain'.
-    Instead, this checks for a real-world SMS scam pattern: the MESSAGE
-    claims to be from a known brand/bank, but the sender field is just an
-    ordinary-looking phone number rather than a registered short code or
-    the brand's actual alphanumeric sender ID. This is a weaker signal
-    than the email domain check (legitimate businesses sometimes do text
-    from real numbers), so it's flagged as medium severity, not high."""
     findings: list[Finding] = []
     if not sender:
         return findings
 
     text_lower = text.lower()
-    # A short code is typically 5-6 digits; a real phone number is longer.
-    # An alphanumeric sender ID (e.g. "DHL", "AMAZON") contains letters.
     looks_like_ordinary_number = bool(re.fullmatch(r"[+]?[\d\s().-]{8,}", sender))
 
     for brand in COMMON_BRANDS:
@@ -432,11 +367,6 @@ def check_sms_brand_mismatch(sender: str | None, text: str) -> list[Finding]:
 
 
 def analyze_sms(text: str) -> HeuristicsResult:
-    """Entry point for SMS/smishing text (pasted directly, or reconstructed
-    from a screenshot). Reuses every channel-agnostic check (urgency
-    language, sensitive-info requests, suspicious URLs) from the email
-    pipeline, and adds one SMS-specific check in place of the email
-    domain-lookalike check, which doesn't apply here."""
     sender = _extract_sms_sender(text)
     urls = _extract_urls(text)
 
@@ -460,11 +390,11 @@ def analyze_sms(text: str) -> HeuristicsResult:
 
 def decode_qr_url(image_bytes: bytes) -> str | None:
     """Decodes a QR code from raw image bytes using OpenCV's built-in
-    detector -- a deterministic computer-vision algorithm, NOT the AI. QR
-    codes are dense, error-correction-encoded patterns designed for
-    algorithmic decoding, not general visual understanding -- a vision LLM
-    asked to 'read' one directly is unreliable in a way a real decoder
-    simply isn't. Returns None if no QR code was found in the image."""
+    detector -- deterministic computer vision, NOT the AI (a vision LLM
+    asked to 'read' a QR code directly is unreliable in a way a real
+    decoder isn't). Tries several preprocessed variants (grayscale,
+    upscaled, contrast-enhanced, adaptively thresholded) since the raw
+    single-pass detector is a known weak point on real-world photos."""
     import cv2
     import numpy as np
 
@@ -474,17 +404,37 @@ def decode_qr_url(image_bytes: bytes) -> str | None:
         return None
 
     detector = cv2.QRCodeDetector()
-    data, _points, _straight_qrcode = detector.detectAndDecode(image)
-    return data if data else None
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    candidates = [image, gray]
+
+    height, width = gray.shape
+    if max(height, width) < 1000:
+        scale = 1000 / max(height, width)
+        upscaled = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        candidates.append(upscaled)
+
+    clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
+    candidates.append(clahe.apply(gray))
+
+    candidates.append(
+        cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 35, 5)
+    )
+
+    for candidate in candidates:
+        data, _points, _straight_qrcode = detector.detectAndDecode(candidate)
+        if data:
+            return data
+
+    return None
 
 
-def analyze_qr_url(url: str) -> tuple[HeuristicsResult, str]:
-    """Entry point for a decoded QR URL. Reuses check_suspicious_urls --
-    the exact same lookalike-domain, IP-based-link, and shortener checks
-    already built for links found inside emails/SMS -- since a URL is a
-    URL regardless of how it reached us. Returns a synthetic text block
-    describing the scan, so the LLM reasoning layer (which expects a
-    'message') has natural context to reason about."""
+def analyze_qr_url(url: str, page_text: str | None = None, fetch_note: str | None = None) -> tuple[HeuristicsResult, str]:
+    """Entry point for a decoded QR URL. Reuses check_suspicious_urls (the
+    same lookalike-domain/IP/shortener checks used for email and SMS
+    links). If page_text is provided (Stage 2 -- a safely fetched preview
+    of the destination page's visible text), it's included so the LLM can
+    reason about what's actually AT the URL, not just its appearance."""
     findings = check_suspicious_urls([url])
     result = HeuristicsResult(
         urls_found=[url],
@@ -493,9 +443,13 @@ def analyze_qr_url(url: str) -> tuple[HeuristicsResult, str]:
     )
     result.findings.extend(findings)
 
-    synthetic_text = (
-        f"A QR code was scanned. It encodes the following destination URL:\n{url}"
-    )
+    parts = [f"A QR code was scanned. It encodes the following destination URL:\n{url}"]
+    if page_text:
+        parts.append(f"\nHere is a preview of the VISIBLE TEXT on that page (fetched safely, read-only):\n---\n{page_text}\n---")
+    elif fetch_note:
+        parts.append(f"\n({fetch_note})")
+    synthetic_text = "\n".join(parts)
+
     return result, synthetic_text
 
 
@@ -504,11 +458,6 @@ def analyze_qr_url(url: str) -> tuple[HeuristicsResult, str]:
 # ---------------------------------------------------------------------------
 
 def _extract_auth_results(msg: Message) -> dict:
-    """Reads the 'Authentication-Results' header(s), added by the mail
-    server that RECEIVED the email, which record whether SPF/DKIM/DMARC
-    checks passed. A raw .eml file can contain more than one of these
-    headers (added by different servers as the email hopped between them),
-    so we search all of them combined."""
     results = {"spf": None, "dkim": None, "dmarc": None}
     auth_headers = msg.get_all("Authentication-Results", failobj=[])
     combined = " ".join(auth_headers)
@@ -520,9 +469,6 @@ def _extract_auth_results(msg: Message) -> dict:
 
 
 def _extract_body(msg: Message) -> str:
-    """Emails are often 'multipart' (a plain-text version AND an HTML
-    version bundled together). We specifically want the plain-text part --
-    walk() lets us look through every part of the email to find it."""
     if msg.is_multipart():
         for part in msg.walk():
             if part.get_content_type() == "text/plain" and not part.get_filename():
@@ -540,12 +486,6 @@ def _extract_body(msg: Message) -> str:
 
 
 def analyze_eml(raw_bytes: bytes) -> tuple[HeuristicsResult, str]:
-    """Entry point for uploaded .eml files. Parses real headers (unlocking
-    SPF/DKIM/DMARC verification) and the message body, then reuses the same
-    checks analyze() uses for pasted text, plus the new authentication check.
-    Returns the HeuristicsResult, plus a reconstructed text block (matching
-    the shape analyze() expects) so the LLM sees a consistent format either way.
-    """
     msg = message_from_bytes(raw_bytes)
 
     subject = msg.get("Subject", "")

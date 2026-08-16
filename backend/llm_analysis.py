@@ -1,20 +1,10 @@
 """
 llm_analysis.py
 
-The reasoning layer of the phishing checker. Takes the raw email text a
-user pasted plus the structured findings from heuristics.py, and asks
-Claude to weigh everything together and produce ONE final verdict with
-a plain-English explanation a non-technical person can trust.
-
-Design principle: the LLM does not re-derive facts the heuristics layer
-already established (like "this domain doesn't match the real one") --
-it's told those facts directly. Its job is judgment: does this add up
-as a whole, and how do we explain it clearly.
-
-Requires an ANTHROPIC_API_KEY environment variable to call the real API.
-If no key is set, `analyze_with_llm` falls back to a clearly-labeled
-mock response so the rest of the app can be built and tested without a
-key yet.
+The reasoning layer of the phishing checker. Takes the raw message text
+(email, SMS, or a QR-derived URL context) plus the structured findings
+from heuristics.py, and asks Claude to weigh everything together and
+produce ONE final verdict with a plain-English explanation.
 """
 
 from __future__ import annotations
@@ -63,10 +53,8 @@ commentary, no explanation, nothing else."""
 
 def extract_text_from_image(image_bytes: bytes, media_type: str, channel: str = "email") -> str:
     """Reads a screenshot (of an email or an SMS conversation) and reconstructs
-    it as plain text, so it can flow through the exact same heuristics +
-    reasoning pipeline as pasted text. Unlike the rest of this file, there's
-    no mock-mode fallback here -- reading an image genuinely requires calling
-    the real model, since there's no rule-based way to fake 'reading a picture'."""
+    it as plain text. No mock-mode fallback -- reading an image genuinely
+    requires calling the real model."""
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key or anthropic is None:
         raise ValueError(
@@ -103,9 +91,10 @@ def extract_text_from_image(image_bytes: bytes, media_type: str, channel: str = 
         block.text for block in message.content if getattr(block, "type", None) == "text"
     ).strip()
 
+
 SYSTEM_PROMPT = """You are a phishing-detection assistant used inside a public web tool. \
-A non-technical person has pasted a message (an email or a text/SMS message) they're unsure \
-about. You will be given:
+A non-technical person has pasted a message (an email, a text/SMS message, or a link decoded \
+from a QR code) they're unsure about. You will be given:
 1. The raw message text they pasted
 2. A list of objective technical findings already detected by a separate rule-based system \
 (you should treat these findings as established facts -- do not doubt or re-derive them)
@@ -158,10 +147,6 @@ into plain consequences (e.g. "the sender's address doesn't actually belong to t
 - If the message is too short/ambiguous to judge confidently, say so honestly rather than guessing
 """
 
-# Maps our lightweight detect_language() result to a clear instruction
-# name for the model -- kept separate from the static SYSTEM_PROMPT above
-# so the per-request language choice doesn't require rewriting (and
-# invalidating any future caching of) the system prompt itself.
 _LANGUAGE_NAMES = {
     "arabic": "Arabic",
     "english": "English",
@@ -176,12 +161,12 @@ class RedFlag:
 
 @dataclass
 class Verdict:
-    risk_level: str          # "safe" | "suspicious" | "dangerous"
-    confidence: str          # "low" | "medium" | "high"
+    risk_level: str
+    confidence: str
     summary: str
     red_flags: list[RedFlag] = field(default_factory=list)
     reassurance_notes: str = ""
-    is_mock: bool = False     # True if no API key was available and this is a fallback
+    is_mock: bool = False
 
 
 def _build_user_message(email_text: str, heuristics: HeuristicsResult, response_language: str) -> str:
@@ -200,6 +185,20 @@ def _build_user_message(email_text: str, heuristics: HeuristicsResult, response_
     )
 
 
+def _enforce_consistency(verdict: Verdict) -> Verdict:
+    """Backstop that doesn't rely on the AI following instructions perfectly.
+    If it ever says "safe" while still listing red flags, we upgrade to
+    "suspicious" rather than silently discard what it noticed."""
+    if verdict.risk_level == "safe" and verdict.red_flags:
+        verdict.risk_level = "suspicious"
+        if not verdict.summary.startswith("[Adjusted]"):
+            verdict.summary = (
+                "[Adjusted] " + verdict.summary +
+                " (Upgraded from 'safe' because some observations were still noted below.)"
+            )
+    return verdict
+
+
 def _parse_response(raw_text: str) -> Verdict:
     data = json.loads(raw_text)
     red_flags = [
@@ -216,27 +215,7 @@ def _parse_response(raw_text: str) -> Verdict:
     return _enforce_consistency(verdict)
 
 
-def _enforce_consistency(verdict: Verdict) -> Verdict:
-    """Backstop that doesn't rely on the AI following instructions perfectly.
-    If the AI ever says "safe" while still listing red flags (a contradiction
-    we saw happen in testing), we don't silently discard what it noticed --
-    that information might matter. Instead we upgrade the verdict to
-    "suspicious", since a verdict with real flags attached was never
-    genuinely a clean "safe" in the first place."""
-    if verdict.risk_level == "safe" and verdict.red_flags:
-        verdict.risk_level = "suspicious"
-        if not verdict.summary.startswith("[Adjusted]"):
-            verdict.summary = (
-                "[Adjusted] " + verdict.summary +
-                " (Upgraded from 'safe' because some observations were still noted below.)"
-            )
-    return verdict
-
-
 def _mock_verdict(heuristics: HeuristicsResult) -> Verdict:
-    """A simple, clearly-labeled stand-in used when no API key is configured
-    yet, so the rest of the app can be built/tested without one. Always in
-    English -- mock mode is a placeholder, not a real language-aware path."""
     high_findings = [f for f in heuristics.findings if f.severity == "high"]
     if high_findings:
         risk_level = "dangerous"
@@ -263,13 +242,6 @@ def _mock_verdict(heuristics: HeuristicsResult) -> Verdict:
 
 
 def analyze_with_llm(email_text: str, heuristics: HeuristicsResult) -> Verdict:
-    """Main entry point. Calls Claude to produce a final verdict, combining
-    heuristic findings with the model's own reasoning over the email content.
-    Falls back to a mock verdict if no API key is configured.
-
-    The response language is auto-detected from the email text itself (see
-    heuristics.detect_language) so a reader gets an explanation in the same
-    language as the email they're worried about, not just an accurate verdict."""
     api_key = os.environ.get("ANTHROPIC_API_KEY")
 
     if not api_key or anthropic is None:

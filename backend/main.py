@@ -1,13 +1,8 @@
 """
 main.py
 
-The web API for the phishing checker's new custom frontend. This is a
-thin wrapper -- it doesn't contain any detection logic itself, it just
-exposes the existing core.py functions (heuristics + LLM analysis,
-completely unchanged) over HTTP, so a separately-hosted HTML/CSS/JS
-frontend can call them.
-
-Run locally with: uvicorn main:app --reload
+The web API for PhishyMax's custom frontend. Thin wrapper around
+core.py -- no detection logic lives here.
 """
 
 from __future__ import annotations
@@ -28,21 +23,8 @@ from core import (
     check_qr_image_detailed,
 )
 
-
 app = FastAPI(title="PhishyMax API")
 
-# CORS lets our frontend (hosted on a different domain than this API)
-# make requests to it at all -- browsers block cross-origin requests by
-# default unless the server explicitly allows them. Since this API has no
-# accounts or sensitive mutating actions (it only analyzes text/files you
-# send it), allowing any origin is a reasonable choice for now.
-# CORS lets our frontend (hosted on a different domain than this API)
-# make requests to it. Previously set to "*" (any origin) as a placeholder
-# while both pieces were still local -- now that we know the frontend's
-# real, permanent URL, we lock it down to only that origin, plus
-# localhost so local development/testing still works without reopening
-# this back up. A security product with a wide-open API is a bad look,
-# and it's easy to fix now that the real URL exists.
 ALLOWED_ORIGINS = [
     "https://phishy-max.onrender.com",
     "https://phishymax.com",
@@ -58,19 +40,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# ---------------------------------------------------------------------------
-# Rate limiting
-# ---------------------------------------------------------------------------
-# Streamlit's st.session_state doesn't exist here -- there's no browser
-# session concept at all in a plain HTML/JS + API architecture. Instead we
-# track requests by IP address, in memory, within a rolling time window.
-# Same honest limitation as before: not bulletproof (shared IPs, and this
-# resets if the server restarts/redeploys), but a reasonable, lightweight
-# guard against casual abuse -- consistent with how soft our original
-# per-session limit already was.
 MAX_CHECKS_PER_WINDOW = 5
-WINDOW_SECONDS = 24 * 60 * 60  # 24 hours
+WINDOW_SECONDS = 24 * 60 * 60
 
 _request_log: dict[str, list[float]] = defaultdict(list)
 
@@ -90,10 +61,6 @@ def _check_rate_limit(ip: str) -> None:
 
 
 def _build_response(verdict, heuristics_result) -> dict:
-    """Combines the verdict (what the user sees by default) with the raw
-    heuristics facts (sender info, URLs, auth results) under a separate
-    'technical_details' key -- the frontend shows this only when someone
-    expands the optional details section, keeping the default view simple."""
     data = asdict(verdict)
     data["technical_details"] = {
         "sender_name": heuristics_result.sender_name,
@@ -104,14 +71,8 @@ def _build_response(verdict, heuristics_result) -> dict:
     return data
 
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
-
 @app.get("/health")
 def health() -> dict:
-    """Simple endpoint to confirm the API is running -- useful for checking
-    deployment status, and for the frontend to verify connectivity."""
     return {"status": "ok"}
 
 
@@ -119,14 +80,12 @@ def health() -> dict:
 def api_check_text(request: Request, email_text: str = Form(...)) -> dict:
     client_ip = request.client.host if request.client else "unknown"
     _check_rate_limit(client_ip)
-
     try:
         verdict, heuristics_result = check_email_detailed(email_text)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
-
     return _build_response(verdict, heuristics_result)
 
 
@@ -134,16 +93,13 @@ def api_check_text(request: Request, email_text: str = Form(...)) -> dict:
 async def api_check_file(request: Request, file: UploadFile = File(...)) -> dict:
     client_ip = request.client.host if request.client else "unknown"
     _check_rate_limit(client_ip)
-
     raw_bytes = await file.read()
-
     try:
         verdict, heuristics_result = check_email_file_detailed(raw_bytes)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
-
     return _build_response(verdict, heuristics_result)
 
 
@@ -151,17 +107,14 @@ async def api_check_file(request: Request, file: UploadFile = File(...)) -> dict
 async def api_check_image(request: Request, file: UploadFile = File(...)) -> dict:
     client_ip = request.client.host if request.client else "unknown"
     _check_rate_limit(client_ip)
-
     image_bytes = await file.read()
     media_type = file.content_type or "image/png"
-
     try:
         verdict, heuristics_result = check_email_image_detailed(image_bytes, media_type)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
-
     return _build_response(verdict, heuristics_result)
 
 
@@ -169,14 +122,12 @@ async def api_check_image(request: Request, file: UploadFile = File(...)) -> dic
 def api_check_sms_text(request: Request, sms_text: str = Form(...)) -> dict:
     client_ip = request.client.host if request.client else "unknown"
     _check_rate_limit(client_ip)
-
     try:
         verdict, heuristics_result = check_sms_text_detailed(sms_text)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
-
     return _build_response(verdict, heuristics_result)
 
 
@@ -184,17 +135,14 @@ def api_check_sms_text(request: Request, sms_text: str = Form(...)) -> dict:
 async def api_check_sms_image(request: Request, file: UploadFile = File(...)) -> dict:
     client_ip = request.client.host if request.client else "unknown"
     _check_rate_limit(client_ip)
-
     image_bytes = await file.read()
     media_type = file.content_type or "image/png"
-
     try:
         verdict, heuristics_result = check_sms_image_detailed(image_bytes, media_type)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
-
     return _build_response(verdict, heuristics_result)
 
 
@@ -202,14 +150,11 @@ async def api_check_sms_image(request: Request, file: UploadFile = File(...)) ->
 async def api_check_qr_image(request: Request, file: UploadFile = File(...)) -> dict:
     client_ip = request.client.host if request.client else "unknown"
     _check_rate_limit(client_ip)
-
     image_bytes = await file.read()
-
     try:
         verdict, heuristics_result = check_qr_image_detailed(image_bytes)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
-
     return _build_response(verdict, heuristics_result)

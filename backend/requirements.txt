@@ -3,3 +3,4 @@ uvicorn>=0.51
 python-multipart>=0.0.32
 anthropic>=0.116
 opencv-python-headless>=4.9
+requests>=2.31
