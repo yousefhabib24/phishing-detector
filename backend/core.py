@@ -10,9 +10,11 @@ from __future__ import annotations
 from heuristics import analyze as run_heuristics
 from heuristics import analyze_eml as run_heuristics_on_eml
 from heuristics import analyze_sms as run_heuristics_on_sms
+from heuristics import analyze_vishing as run_heuristics_on_vishing
 from heuristics import decode_qr_url, analyze_qr_url
 from llm_analysis import analyze_with_llm, extract_text_from_image, Verdict
 from url_fetcher import fetch_page_text
+from transcription import transcribe_audio
 
 
 def check_email(email_text: str) -> Verdict:
@@ -98,4 +100,20 @@ def check_qr_image_detailed(image_bytes: bytes):
     page_text, fetch_reason = fetch_page_text(url)
     heuristics_result, synthetic_text = analyze_qr_url(url, page_text=page_text, fetch_note=fetch_reason if not page_text else None)
     verdict = analyze_with_llm(synthetic_text, heuristics_result)
+    return verdict, heuristics_result
+
+
+def check_vishing_audio_detailed(audio_bytes: bytes, filename: str, content_type: str):
+    """Entry point for an uploaded voice recording. Transcribes via
+    OpenAI's Whisper API (Claude's API doesn't accept audio directly),
+    then reuses the vishing-specific heuristics (content checks only --
+    no sender/domain concept for a phone call) and the same AI reasoning
+    layer as every other channel."""
+    if not audio_bytes:
+        raise ValueError("uploaded audio file is empty")
+
+    transcript = transcribe_audio(audio_bytes, filename, content_type)
+
+    heuristics_result = run_heuristics_on_vishing(transcript)
+    verdict = analyze_with_llm(transcript, heuristics_result)
     return verdict, heuristics_result

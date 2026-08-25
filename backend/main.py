@@ -21,6 +21,7 @@ from core import (
     check_sms_text_detailed,
     check_sms_image_detailed,
     check_qr_image_detailed,
+    check_vishing_audio_detailed,
 )
 
 app = FastAPI(title="PhishyMax API")
@@ -153,6 +154,21 @@ async def api_check_qr_image(request: Request, file: UploadFile = File(...)) -> 
     image_bytes = await file.read()
     try:
         verdict, heuristics_result = check_qr_image_detailed(image_bytes)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {e}")
+    return _build_response(verdict, heuristics_result)
+
+
+@app.post("/api/check-vishing-audio")
+async def api_check_vishing_audio(request: Request, file: UploadFile = File(...)) -> dict:
+    client_ip = request.client.host if request.client else "unknown"
+    _check_rate_limit(client_ip)
+    audio_bytes = await file.read()
+    content_type = file.content_type or "audio/mpeg"
+    try:
+        verdict, heuristics_result = check_vishing_audio_detailed(audio_bytes, file.filename or "recording", content_type)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001

@@ -385,6 +385,33 @@ def analyze_sms(text: str) -> HeuristicsResult:
 
 
 # ---------------------------------------------------------------------------
+# Vishing (voice) support
+# ---------------------------------------------------------------------------
+
+def analyze_vishing(transcript: str) -> HeuristicsResult:
+    """Entry point for a voice-call transcript. Unlike email/SMS, there's
+    no sender field or domain to check -- a transcript is just spoken
+    words, with no equivalent of a From line or caller ID. Reuses only
+    the content-based checks (urgency language, sensitive-info requests,
+    any URLs mentioned aloud); everything about *who* is calling has to
+    come from the AI's reasoning over the words themselves, since we have
+    no separate technical signal to check it against."""
+    urls = _extract_urls(transcript)
+
+    result = HeuristicsResult(
+        urls_found=urls,
+        sender_name=None,
+        sender_email=None,
+    )
+
+    result.findings.extend(check_suspicious_urls(urls))
+    result.findings.extend(check_urgency_language(transcript))
+    result.findings.extend(check_sensitive_requests(transcript))
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # QR code / quishing support
 # ---------------------------------------------------------------------------
 
