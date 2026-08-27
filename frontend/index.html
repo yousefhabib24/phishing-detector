@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PhishyMax — Free AI Email Checker</title>
+<title>PhishyMax | Free AI Phishing Checker</title>
 <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="48x48" href="assets/favicon-48.png">
@@ -35,15 +35,14 @@
           <button class="nav-tools-item" data-goto-channel="qr">
             🔲 <span data-i18n="toolQuishing">Quishing</span>
           </button>
-          <button class="nav-tools-item disabled" disabled>
+          <button class="nav-tools-item" data-goto-channel="voice">
             📞 <span data-i18n="toolVishing">Vishing</span>
-            <span class="coming-soon" data-i18n="comingSoon">Coming Soon</span>
           </button>
         </div>
       </div>
     </div>
     <div class="nav-right">
-      <a href="#tool" class="nav-cta" data-i18n="navCta">Check an email</a>
+      <a href="#tool" class="nav-cta" data-i18n="navCta">Check a message</a>
       <div class="lang-toggle" role="group" aria-label="Language">
         <button class="lang-btn active" id="lang-en" data-lang="en">EN</button>
         <button class="lang-btn" id="lang-ar" data-lang="ar">ع</button>
@@ -57,30 +56,76 @@
   <div class="hero-inner">
     <div class="hero-copy">
       <h1 id="hero-headline">
-        <span class="headline-white" data-i18n="heroQuestion">Is That Email Safe?</span>
+        <span class="headline-white" data-i18n="heroQuestion">Is It Phishing?</span>
         <span class="headline-accent" data-i18n="heroAnswer">Find Out in Seconds.</span>
       </h1>
       <p class="hero-sub" data-i18n="heroSub">
-        Paste an email or upload the real file. Our system checks the hard facts —
+        Email, SMS, QR codes, and Voice Calls — PhishyMax checks the hard facts,
         then explains what it found in plain language, not jargon.
       </p>
-      <a href="#tool" class="btn-primary" data-i18n="heroCta">Check an email now →</a>
+      <a href="#tool" class="btn-primary" data-i18n="heroCta">Check a message now →</a>
       <p class="hero-note" data-i18n="heroNote">Free. No sign-up. Works in Arabic and English.</p>
     </div>
 
     <div class="hero-visual" aria-hidden="true">
-      <div class="scan-card">
+      <div class="scan-card scan-card-multi">
         <div class="scan-card-header">
           <span class="scan-dot"></span>
           <span class="scan-dot"></span>
           <span class="scan-dot"></span>
+          <div class="scan-channel-pills">
+            <span class="scan-pill scan-pill-email">📧</span>
+            <span class="scan-pill scan-pill-sms">💬</span>
+            <span class="scan-pill scan-pill-qr">🔲</span>
+            <span class="scan-pill scan-pill-voice">📞</span>
+          </div>
         </div>
-        <div class="scan-line scan-line-1">From: support@paypa1-secure.com</div>
-        <div class="scan-line scan-line-2">Subject: Your account will be suspended</div>
-        <div class="scan-line scan-line-3">Verify immediately: 192.168.1.5/login</div>
+
+        <div class="scan-slides">
+          <div class="scan-slide scan-slide-email">
+            <div class="scan-line scan-line-1">From: support@paypa1-secure.com</div>
+            <div class="scan-line scan-line-2">Subject: Your account will be suspended</div>
+            <div class="scan-line scan-line-3">Verify immediately: 192.168.1.5/login</div>
+            <span class="scan-flag-chip">🚩 Lookalike domain</span>
+          </div>
+
+          <div class="scan-slide scan-slide-sms">
+            <div class="scan-line scan-line-1">From: +1 202 555 0187</div>
+            <div class="scan-line scan-line-2">"Your package could not be delivered."</div>
+            <div class="scan-line scan-line-3">Pay redelivery fee: bit.ly/3xJ9k2</div>
+            <span class="scan-flag-chip">🚩 Urgency + shortened link</span>
+          </div>
+
+          <div class="scan-slide scan-slide-qr">
+            <div class="scan-qr-row">
+              <div class="scan-qr-grid" aria-hidden="true">
+                <span class="f"></span><span class="f"></span><span class="f"></span><span></span><span class="f"></span>
+                <span class="f"></span><span></span><span class="f"></span><span></span><span class="f"></span>
+                <span class="f"></span><span class="f"></span><span class="f"></span><span></span><span></span>
+                <span></span><span></span><span class="f"></span><span></span><span class="f"></span>
+                <span class="f"></span><span></span><span class="f"></span><span class="f"></span><span></span>
+              </div>
+              <div class="scan-qr-text">
+                <div class="scan-line scan-line-2">Decoded destination:</div>
+                <div class="scan-line scan-line-3">secure-hr-portal-login.net</div>
+              </div>
+            </div>
+            <span class="scan-flag-chip">🚩 Newly registered domain</span>
+          </div>
+
+          <div class="scan-slide scan-slide-voice">
+            <div class="scan-waveform" aria-hidden="true">
+              <span></span><span></span><span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span><span></span><span></span>
+              <span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+            <div class="scan-line scan-line-2">"This is your bank's fraud team..."</div>
+            <div class="scan-line scan-line-3">"...read me the code we just texted you."</div>
+            <span class="scan-flag-chip">🚩 Requests one-time code</span>
+          </div>
+        </div>
+
         <div class="scan-beam"></div>
-        <div class="scan-flag scan-flag-1">Lookalike domain</div>
-        <div class="scan-flag scan-flag-2">Raw IP link</div>
       </div>
     </div>
   </div>
@@ -127,6 +172,7 @@
       <button class="channel-btn active" data-channel="email" data-i18n="channelEmail">📧 Email</button>
       <button class="channel-btn" data-channel="sms" data-i18n="channelSms">💬 SMS / Text</button>
       <button class="channel-btn" data-channel="qr" data-i18n="channelQr">🔲 QR Code</button>
+      <button class="channel-btn" data-channel="voice" data-i18n="channelVoice">📞 Voice / Vishing</button>
     </div>
 
     <div class="channel-content active" id="channel-email">
@@ -213,6 +259,20 @@ redelivery fee here: http://example.com/pay"></textarea>
         <span id="qr-image-drop-label" data-i18n="imageDropLabel">Click to choose a screenshot, or drag one here</span>
       </label>
       <button class="btn-primary" id="check-qr-btn" data-i18n="checkQrBtn">Check This QR Code</button>
+    </div>
+
+    <div class="channel-content" id="channel-voice">
+      <p class="upload-hint" data-i18n="uploadVoiceHint">
+        Upload a recording of the call (voicemail, screen recording, or an
+        exported call recording). We'll transcribe it and check the words
+        for phishing red flags -- this can't detect tone of voice or verify
+        who was actually calling.
+      </p>
+      <label class="file-drop" id="voice-audio-drop">
+        <input type="file" id="voice-audio" accept="audio/*" hidden>
+        <span id="voice-audio-drop-label" data-i18n="voiceDropLabel">Click to choose an audio file, or drag one here</span>
+      </label>
+      <button class="btn-primary" id="check-voice-btn" data-i18n="checkVoiceBtn">Check This Recording</button>
     </div>
 
     <p class="checks-remaining" id="checks-remaining"></p>
